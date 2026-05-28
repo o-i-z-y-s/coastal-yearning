@@ -1,0 +1,529 @@
+@font-face {
+  font-family: 'Montserrat';
+  src: url('../fonts/Montserrat-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('../fonts/Montserrat-SemiBold.woff') format('woff');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Montserrat';
+  src: url('../fonts/Montserrat-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Reset / base ───────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --pulldown: #096dd9;
+  --font: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--pulldown);
+  font-family: var(--font);
+  font-size: 1rem;
+  font-weight: 500;
+  color: #fff;
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background-color 0.8s ease;
+}
+
+/* Theme crossfade overlay */
+#theme-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ── Time controls wrapper (fixed, top-right) ───────────────────────────────── */
+
+#time-controls {
+  position: fixed;
+  z-index: 100;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 140px;
+  gap: 0.5rem;
+}
+
+/* ── Clock scrubber ─────────────────────────────────────────────────────────── */
+
+#clock-scrubber {
+  cursor: grab;
+  user-select: none;
+}
+#clock-scrubber:active { cursor: grabbing; }
+#clock-canvas {
+  display: block;
+  border-radius: 50%;
+  width: 100%;
+  aspect-ratio: 1;
+  height: auto;
+}
+
+#scrubber-restore {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 4px 0;
+  background: rgba(0, 0, 0, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: var(--font);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, color 0.2s, border-color 0.2s;
+}
+#scrubber-restore.visible { opacity: 1; pointer-events: auto; }
+#scrubber-restore:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
+#scrubber-restore:focus:not(:focus-visible) { outline: none; }
+
+/* Scrubber collapse toggle */
+#scrubber-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: var(--font);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+#scrubber-toggle:hover { color: rgba(255, 255, 255, 0.85); border-color: rgba(255, 255, 255, 0.3); }
+#scrubber-toggle:focus:not(:focus-visible) { outline: none; }
+.toggle-clock-icon { flex-shrink: 0; }
+.toggle-label { flex: 1; text-align: center; }
+.toggle-arrow { flex-shrink: 0; transition: transform 0.25s ease; }
+#time-controls.scrubber-collapsed .toggle-arrow { transform: rotate(-180deg); }
+#time-controls.scrubber-collapsed #clock-scrubber { display: none; }
+
+/* ── Time toggle ────────────────────────────────────────────────────────────── */
+
+.time-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.52);
+  border-radius: 999px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.time-btn {
+  background: none;
+  border: none;
+  padding: 4px 5px;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  border-radius: 999px;
+}
+.time-btn:hover  { opacity: 1; }
+.time-btn:focus:not(:focus-visible) { outline: none; }
+.time-btn img {
+  width: 18px;
+  height: 18px;
+  filter: invert(100%);
+  display: block;
+}
+.img-flip { transform: scaleX(-1); }
+
+/* ── Sky hero (full viewport) ───────────────────────────────────────────────── */
+
+#sky-hero {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  /* Stacking context above the fixed bubbles canvas (z-index 0),
+     so the sky gradient background covers it when scrolled to top */
+  z-index: 2;
+}
+
+/* Gradient canvas — lowest layer, painted by JS to avoid CSS repaint cost */
+#gradient-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Sky canvas — stars layer, above gradient canvas (DOM order) */
+#sky-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Sun */
+#sun {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+#sun::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 18px  8px rgba(255, 255, 255, 0.70),
+    0 0 60px 24px rgba(255, 220, 100, 0.30),
+    0 0 120px 50px rgba(255, 180,  30, 0.12);
+  position: absolute;
+  left: var(--sun-left);
+  top:  var(--sun-top);
+  transform: translate(-50%, -50%);
+  visibility: var(--sun-vis, hidden);
+}
+
+/* Moon — rendered on canvas for accurate phase */
+#moon-canvas {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+  filter:
+    drop-shadow(0 0 5px  rgba(210, 225, 255, 0.65))
+    drop-shadow(0 0 16px rgba(190, 210, 255, 0.30))
+    drop-shadow(0 0 36px rgba(170, 200, 255, 0.14));
+}
+
+/* Hero text */
+#hero-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -55%);
+  z-index: 3;
+  text-align: center;
+  width: 90%;
+  max-width: 640px;
+}
+#hero-name {
+  font-size: 4.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 0.35rem;
+  animation: fadein 1s ease-out both;
+}
+#hero-tagline {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.05em;
+  margin-bottom: 2rem;
+  animation: fadein 0.9s ease-out 0.9s both;
+}
+#hero-icons {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  animation: fadein 0.8s ease-out 1.6s both;
+}
+#hero-icons a {
+  display: inline-flex;
+  padding: 10px 12px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+#hero-icons a:hover { opacity: 1; }
+#hero-icons img {
+  width: 26px;
+  height: 26px;
+  filter: invert(100%);
+  vertical-align: middle;
+}
+
+/* Water surface haze — overlays bottom of sky, strongest at waterline, fades up */
+#sky-surface {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 10vh;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Wave SVG — the actual water surface boundary */
+#wave-divider {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 80px;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+.wave-svg {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  will-change: transform;
+}
+.wave-svg--back {
+  animation: wave-flow 14s linear infinite;
+  opacity: 0.55;
+}
+.wave-svg--front {
+  animation: wave-flow 9s linear infinite;
+}
+
+/* Scroll cue */
+.scroll-cue {
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: cue-bob 2.4s ease-in-out infinite, pop-in 3s ease-out both;
+}
+.chevron {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-right: 2px solid rgba(255, 255, 255, 0.55);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.55);
+  transform: rotate(45deg);
+  margin: -2px 0;
+}
+
+/* ── Ocean ──────────────────────────────────────────────────────────────────── */
+
+#ocean {
+  position: relative;
+  min-height: 55vh;
+  padding-top: 3.5rem;
+  padding-bottom: 6vh;
+  transition: background 0.8s ease;
+}
+
+/* Bubbles canvas — fixed, behind ocean content */
+#bubbles-canvas {
+  position: fixed;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.ocean-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5rem;
+  padding: 0 2rem;
+}
+
+/* Bio intro */
+.ocean-bio {
+  font-size: 1rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  max-width: 480px;
+  line-height: 1.7;
+}
+.ocean-bio a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.ocean-bio a:hover { opacity: 0.8; }
+
+/* Card rows */
+.card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  width: 100%;
+  max-width: 880px;
+}
+
+/* Glass cards */
+.glass-card {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 1.75rem 2rem;
+  flex: 1 1 300px;
+  max-width: 420px;
+}
+.card-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 0.55rem;
+}
+.card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.5rem;
+  line-height: 1.3;
+}
+.card-sub {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.6;
+}
+.glass-card--link {
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.glass-card--link::after {
+  content: '↗';
+  position: absolute;
+  top: 0.85rem;
+  right: 1rem;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.28);
+  transition: color 0.2s;
+}
+.glass-card--link:hover::after { color: rgba(255, 255, 255, 0.65); }
+.glass-card--link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.glass-card--link .card-sub { color: rgba(255, 255, 255, 0.7); }
+.glass-card--small { flex: 1 1 140px; max-width: 190px; padding: 1.1rem 1.25rem; }
+
+/* Section dividers */
+.ocean-divider {
+  width: 100%;
+  max-width: 880px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Ocean sections (stack, highlights, projects) */
+.ocean-section {
+  width: 100%;
+  max-width: 880px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+.section-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────── */
+
+#footer {
+  position: relative;
+  z-index: 1;
+  padding: 2rem 1rem 1rem;
+  font-size: 0.8rem;
+  font-style: italic;
+  text-align: center;
+  color: #fff;
+  background-color: var(--ocean-floor, #001b36);
+  background-image: url('../assets/sand-dark.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Foreground sand — full transparency preserved, fades at night via --sand-opacity */
+#footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url('../assets/sand.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: var(--sand-opacity, 1);
+  pointer-events: none;
+}
+#footer-text { position: relative; z-index: 1; }
+
+/* ── Animations ───────────────────────────────────────────────────────────────────────── */
+
+@keyframes fadein {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pop-in {
+  0%, 60% { opacity: 0; }
+  100%    { opacity: 1; }
+}
+@keyframes cue-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0);    opacity: 0.45; }
+  50%      { transform: translateX(-50%) translateY(13px); opacity: 0.85; }
+}
+@keyframes wave-flow {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); 
