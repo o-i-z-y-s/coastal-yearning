@@ -230,6 +230,17 @@ class PlanetRenderer {
 
     hero.addEventListener('mousemove', e => this._onMouseMove(e));
     hero.addEventListener('mouseleave', () => { this._tip.style.opacity = '0'; });
+
+    // Dismiss when touching anything outside the nearest planet — covers the
+    // clock scrubber (outside #sky-hero) and other off-hero taps on mobile.
+    document.addEventListener('pointerdown', e => {
+      if (this._tip.style.opacity === '0') return;
+      const rect = this.canvas.getBoundingClientRect();
+      const mx   = e.clientX - rect.left;
+      const my   = e.clientY - rect.top;
+      const near = this._rendered.some(rp => Math.hypot(mx - rp.x, my - rp.y) < 32);
+      if (!near) this._tip.style.opacity = '0';
+    }, { capture: true });
     this._positions     = [];
     this._rendered      = []; // cached {planet, x, y} for hover checks
     this._lastFrame     = 0;
@@ -282,11 +293,11 @@ class PlanetRenderer {
     }
     if (hit) {
       this._tip.textContent = hit.planet.name;
-      // Position pill above-right of planet, clamped inside canvas
+      // Position pill above-right of planet, clamped to all four canvas edges.
       const tw = this._tip.offsetWidth  || 70;
       const th = this._tip.offsetHeight || 22;
-      const px = Math.min(hit.x + 10, this.canvas.width  - tw - 8);
-      const py = Math.max(hit.y - th - 8, 4);
+      const px = Math.max(8, Math.min(hit.x + 10,      this.canvas.width  - tw - 8));
+      const py = Math.max(4, Math.min(hit.y - th - 8,  this.canvas.height - th - 8));
       this._tip.style.left    = px + 'px';
       this._tip.style.top     = py + 'px';
       this._tip.style.opacity = '1';

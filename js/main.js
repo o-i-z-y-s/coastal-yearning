@@ -223,9 +223,10 @@ function applyGradients(hours, skyOnly) {
     if (_skyTop !== _lastSkyTop) {
       _lastSkyTop = _skyTop;
       document.documentElement.style.setProperty('--sky-top', _skyTop);
-      // Also set backgroundColor directly — iOS Safari's overscroll compositor
-      // caches the resolved value at paint time and ignores CSS variable updates.
       document.documentElement.style.backgroundColor = _skyTop;
+      // iOS Safari uses theme-color (not html background-color) for the top
+      // chrome and overscroll area — keep it in sync with the actual sky colour.
+      _setThemeColor(_skyTop);
     }
   }
   window._starVisibility = getStarVisibility(hours, skyB);
@@ -412,9 +413,8 @@ function applyTheme(themeKey, skyHours) {
   const hrs = skyHours !== undefined ? skyHours : THEME_HOURS[themeKey];
   document.documentElement.style.setProperty('--pulldown',    th.pulldown);
   document.documentElement.style.setProperty('--ocean-floor', th.oceanFloor);
-  _setThemeColor(th.pulldown);
   _setFavicon(hrs);
-  applyGradients(hrs);  // applyGradients handles --sand-opacity continuously
+  applyGradients(hrs);  // applyGradients handles --sand-opacity and theme-color
 }
 
 // ── Moon phase ───────────────────────────────────────────────────────────────
@@ -979,7 +979,6 @@ class ClockScrubber {
       const th = THEMES[theme];
       document.documentElement.style.setProperty('--pulldown',    th.pulldown);
       document.documentElement.style.setProperty('--ocean-floor', th.oceanFloor);
-      _setThemeColor(th.pulldown);
       _setFavicon(hours);
     }
 
@@ -1116,7 +1115,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const _bootTheme = THEMES[currentOceanTheme];
   document.documentElement.style.setProperty('--pulldown',    _bootTheme.pulldown);
   document.documentElement.style.setProperty('--ocean-floor', _bootTheme.oceanFloor);
-  _setThemeColor(_bootTheme.pulldown);
   _setFavicon(_bootSecs / 3600);
   // Lock sky height to the initial viewport — prevents iOS nav-bar resize from reflowing the sky.
   document.documentElement.style.setProperty('--sky-h', window.innerHeight + 'px');
@@ -1139,7 +1137,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const t = THEMES[themeKey];
       document.documentElement.style.setProperty('--pulldown',    t.pulldown);
       document.documentElement.style.setProperty('--ocean-floor', t.oceanFloor);
-      _setThemeColor(t.pulldown);
       _setFavicon(hours);
     }
   }, 60000);
@@ -1323,8 +1320,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const _mr = 29;
       const cx  = mr.left - hr.left + mr.width  / 2;
       const cy  = mr.top  - hr.top  + mr.height / 2;
-      const px  = Math.min(cx - pw / 2, hr.width - pw - 8);
-      const py  = Math.min(cy + _mr + 5, hr.height - ph - 8);
+      const px  = Math.max(8, Math.min(cx - pw / 2, hr.width  - pw - 8));
+      const py  = Math.max(8, Math.min(cy + _mr + 5, hr.height - ph - 8));
       _moonPill.style.left    = px + 'px';
       _moonPill.style.top     = py + 'px';
       _moonPill.style.opacity = '1';
@@ -1365,5 +1362,18 @@ document.addEventListener('DOMContentLoaded', () => {
       _moonPillShown = false;
       _moonPill.style.opacity = '0';
     });
+
+    // Dismiss when touching anything outside the moon — including the clock
+    // scrubber, which lives outside #sky-hero and fires no sky-hero event.
+    document.addEventListener('pointerdown', e => {
+      if (!_moonPillShown) return;
+      const mr = _moonEl.getBoundingClientRect();
+      const cx = mr.left + mr.width  / 2;
+      const cy = mr.top  + mr.height / 2;
+      if (Math.hypot(e.clientX - cx, e.clientY - cy) >= mr.width / 2 + 12) {
+        _moonPillShown = false;
+        _moonPill.style.opacity = '0';
+      }
+    }, { capture: true });
   }
 });
