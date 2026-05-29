@@ -474,6 +474,7 @@ let _lastDrawnMoonPhase = -1;
 // (white at zenith t=0.5, amber near horizon t~0 or t~1). No canvas needed; just a
 // CSS variable updated here alongside --sun-left/--sun-top.
 function placeSunMoon(secondsSinceMidnight) {
+  window._currentSecs = secondsSinceMidnight; // read by planets.js
   const dayPct = (secondsSinceMidnight / 43200) * 100;
 
   const HORIZON_Y = 22, PEAK_Y = 9, ARC_H = HORIZON_Y - PEAK_Y;
@@ -642,6 +643,8 @@ class ClockScrubber {
     this.active      = false;
     this._overriding = false;
     this._lastTheme  = null;
+    this._dateOffset = 0;
+    this._prevSecs   = this.secs;
     this._pendingX   = 0;
     this._pendingY   = 0;
     this._rafId      = null;
@@ -657,11 +660,13 @@ class ClockScrubber {
     this.canvas.addEventListener('touchstart', e => this._down(ev(e)), { passive: false });
     window.addEventListener('mousemove',  e => this._move(ev(e)));
     window.addEventListener('touchmove',  e => { if (this.active) { e.preventDefault(); this._move(ev(e)); } }, { passive: false });
-    // On release: mark inactive, then do one full gradient sync for the ocean section.
+    // On release: always clear scrubbing state first so it can never get stuck
+    // (e.g. if the Restore button resets this.active before mouseup fires).
     const _onRelease = () => {
-      if (!this.active) return;
-      this.active       = false;
       window._scrubbing = false;
+      document.documentElement.classList.remove('scrubbing');
+      if (!this.active) return;
+      this.active = false;
       requestAnimationFrame(() => applyGradients(this.secs / 3600));
     };
     window.addEventListener('mouseup',  _onRelease);
@@ -672,8 +677,15 @@ class ClockScrubber {
         const now         = getSecondsNow();
         _el.restore.classList.remove('visible');
         this.active       = false;
+        window._scrubbing = false;
+        document.documentElement.classList.remove('scrubbing');
         this._overriding  = false;
         this._lastTheme   = null;
+        this._dateOffset    = 0;
+        this._prevSecs      = now;
+        window._currentDate = null;
+        window._devPlanetDate = null;
+        this._updateDatePill();
         this.secs         = now;
         this.draw();
         manualOverride    = false;
@@ -704,6 +716,7 @@ class ClockScrubber {
     this.active        = true;
     this._canvasRect   = this.canvas.getBoundingClientRect();
     window._scrubbing  = true;
+    document.documentElement.classList.add('scrubbing');
     this._pendingX = e.clientX;
     this._pendingY = e.clientY;
     this._scheduleProcess();
@@ -725,14 +738,25 @@ class ClockScrubber {
   }
 
   _process() {
-    this.secs = this._secsFromPoint(this._pendingX, this._pendingY);
+    const _prev   = this._prevSecs;
+    this.secs     = this._secsFromPoint(this._pendingX, this._pendingY);
+    this._prevSecs = this.secs;
+
+    // Detect midnight crossings: a jump > 12 hours means the hand crossed midnight.
+    // Forward (clockwise, ~23:59 → 00:00): delta is large negative  → offset +1
+    // Backward (counter-clockwise, 00:00 → ~23:59): delta is large positive → offset -1
+    const _delta = this.secs - _prev;
+    if (_delta < -43200)      this._dateOffset += 1;
+    else if (_delta > 43200)  this._dateOffset -= 1;
+    window._currentDate = this._getOffsetDate();
+    this._updateDatePill();
+
     this.draw();
     const hours = this.secs / 3600;
     placeSunMoon(this.secs);
+    if (window._planetRenderer) window._planetRenderer.drawNow();
 
-    // Sky-only during active drag — ocean section is off-screen and the
-    // CSS custom property + transition costs aren't worth it at 60 fps.
-    applyGradients(hours, true);
+    applyGradients(hours);
 
     const theme = getTimeOfDayFromHour(hours);
     if (theme !== this._lastTheme) {
@@ -754,6 +778,31 @@ class ClockScrubber {
     if (_el.restore) {
       if (deviated) _el.restore.classList.add('visible');
       else          _el.restore.classList.remove('visible');
+    }
+  }
+
+  _getOffsetDate() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + this._dateOffset);
+    return d;
+  }
+
+  _updateDatePill() {
+    const el = _el.scrubberDate;
+    if (!el) return;
+    if (this._dateOffset === 0) {
+      el.classList.remove('visible');
+      window._devPlanetDate = null;
+      if (window._showPlanetDevDate) window._showPlanetDevDate(null);
+    } else {
+      const d = this._getOffsetDate();
+      el.textContent = d.toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      });
+      el.classList.add('visible');
+      window._devPlanetDate = d; // keep [/] week-skipper stepping from scrubber date
+      if (window._showPlanetDevDate) window._showPlanetDevDate(d);
     }
   }
 
@@ -844,6 +893,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _el.ocean          = document.getElementById('ocean');
   _el.footer         = document.getElementById('footer');
   _el.restore        = document.getElementById('scrubber-restore');
+  _el.scrubberDate   = document.getElementById('scrubber-date');
   _el.sun            = document.getElementById('sun');
   _el.moon           = document.getElementById('moon-canvas');
   _el.wavePaths      = Array.from(document.querySelectorAll('.wave-path'));
@@ -906,6 +956,7 @@ document.addEventListener('DOMContentLoaded', () => {
   new BubbleParticles('bubbles-canvas');
 
   clockScrubber = new ClockScrubber('clock-canvas');
+  window._clockScrubber = clockScrubber; // read by planets.js dev key handler
 
   // ── Scrubber collapse toggle ──────────────────────────────────────────────
   const _scrubToggle = document.getElementById('scrubber-toggle');

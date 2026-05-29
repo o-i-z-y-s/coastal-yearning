@@ -152,14 +152,21 @@ class BubbleParticles {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+    // Bubbles fade to zero in the top 10% of the canvas so they dissolve
+    // into the wave surface rather than popping against a hard wall.
+    const fadeZone = this.canvas.height * 0.10;
+
     for (const b of this.bubbles) {
       b.y -= b.speed;
       if (b.y + b.size < 0) {
         Object.assign(b, this._makeBubble(false));
       }
+      const surfaceFade = b.y <= fadeZone ? Math.max(0, b.y / fadeZone) : 1;
+      const op = b.opacity * surfaceFade;
+      if (op < 0.01) continue;
       ctx.beginPath();
       ctx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${b.opacity.toFixed(2)})`;
+      ctx.fillStyle = `rgba(255,255,255,${op.toFixed(2)})`;
       ctx.fill();
     }
   }

@@ -111,6 +111,27 @@ a { color: inherit; text-decoration: none; }
 #scrubber-restore:hover { color: #fff; border-color: rgba(255, 255, 255, 0.4); }
 #scrubber-restore:focus:not(:focus-visible) { outline: none; }
 
+#scrubber-date {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 4px 0;
+  background: rgba(0, 0, 0, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.65);
+  font-family: var(--font);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+#scrubber-date.visible { opacity: 1; }
+
 /* Scrubber collapse toggle */
 #scrubber-toggle {
   display: flex;
@@ -142,12 +163,12 @@ a { color: inherit; text-decoration: none; }
 #time-controls:not(.scrubber-collapsed) .toggle-arrow { transform: rotate(180deg); }
 
 /* js-ready: correct visible/hidden state set instantly on load — no transition */
-#time-controls.js-ready:not(.scrubber-collapsed) #clock-scrubber { max-height: 220px; opacity: 1; }
+#time-controls.js-ready:not(.scrubber-collapsed) #clock-scrubber { max-height: 280px; opacity: 1; }
 #time-controls.js-ready.scrubber-collapsed #clock-scrubber        { max-height: 0;     opacity: 0; }
 
 /* user-interacted: transitions activate only after the first click — never on load */
 #time-controls.js-ready.user-interacted:not(.scrubber-collapsed) #clock-scrubber {
-  max-height: 220px;
+  max-height: 280px;
   opacity: 1;
   transition: opacity 0.25s ease 0s, max-height 0s linear 0s;
 }
@@ -368,6 +389,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ── Ocean ──────────────────────────────────────────────────────────────────── */
+
+/* During clock scrub, suppress slow bg transitions so body and ocean stay in
+   sync with the instantly-updating sky gradient canvas. */
+html.scrubbing body,
+html.scrubbing #ocean { transition: none !important; }
 
 #ocean {
   position: relative;

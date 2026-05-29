@@ -7,7 +7,7 @@ window.CONTENT = {
 
   // ── Hero ────────────────────────────────────────────────────────────────────
   name:    'Jordan Fluitt',
-  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Dog lover. Used em-dashes long before AI did.',
+  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astonomy nerd. Dog lover. Used em-dashes long before AI did.',
 
   links: [
     { href: 'https://github.com/o-i-z-y-s',                   img: './assets/github.png',   label: 'GitHub'   },
@@ -23,12 +23,12 @@ window.CONTENT = {
     {
       label: 'Currently',
       title: 'Technical Program Manager',
-      body:  'Own a portfolio of five R&D projects, driving products from inception to market.',
+      body:  'Own a portfolio of five R&D projects, driving products from inception to market. Steward the budget and report directly to executives.',
     },
     {
       label: 'Previously',
       title: 'Senior Software Engineer',
-      body:  'Developed mission-essential software for space launch. Also built cables on an island in Alaska.',
+      body:  'Developed mission-essential software for space launch. Took a sledgehammer to old UI. Also built cables on an island in Alaska.',
     },
     {
       label: 'Learning',
@@ -56,7 +56,7 @@ window.CONTENT = {
     },
     {
       title: 'This site!',
-      body:  'Vanilla JS, canvas stars/bubbles, dynamic sky and ocean theming, real-time celestial body positioning. Did you check the moon phase?',
+      body:  'Vanilla JS, real-time celestial body positioning, dynamic sky and ocean theming, canvas stars/bubbles. Did you check the moon phase?',
       href:  null,
     },
   ],
@@ -66,7 +66,7 @@ window.CONTENT = {
     { title: 'Linguistics',         body: 'UC Santa Barbara. Studied abroad in Tokyo. This actually came in handy building hoverleser.' },
     { title: 'Localization',        body: 'Untangle Japanese works in translation when new volumes drop. I\'ve done over 50! And a game!' },
     { title: 'German',              body: 'Can fully understand videos on geopolitics, but cannot summarize them back to you.' },
-    { title: 'Japanese',            body: 'Could survive outside Tokyo without a phone, but it would not be fun for anyone involved.' },
+    { title: 'Japanese',            body: 'Could survive outside Tokyo with no phone, but it would not be fun for anyone involved.' },
   ],
 
 
