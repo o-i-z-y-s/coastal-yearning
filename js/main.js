@@ -223,9 +223,6 @@ function applyGradients(hours, skyOnly) {
     if (_skyTop !== _lastSkyTop) {
       _lastSkyTop = _skyTop;
       document.documentElement.style.setProperty('--sky-top', _skyTop);
-      // iOS Safari: body background → top pull-down overscroll.
-      // html background → bottom pull-up overscroll (set below with footerColor).
-      document.body.style.backgroundColor = _skyTop;
       _setThemeColor(_skyTop);
     }
   }
@@ -253,8 +250,6 @@ function applyGradients(hours, skyOnly) {
     if (footerColor !== _lastFooterColor) {
       _lastFooterColor = footerColor;
       if (_el.footer) _el.footer.style.backgroundColor = footerColor;
-      // iOS Safari: html background → bottom pull-up overscroll colour.
-      document.documentElement.style.backgroundColor = footerColor;
     }
     document.documentElement.style.setProperty('--sand-opacity', getSandOpacity(hours, oceanB));
   }

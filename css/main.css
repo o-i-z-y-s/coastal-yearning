@@ -32,7 +32,9 @@
 html {
   scroll-behavior: smooth;
   overscroll-behavior-x: none;
-  background-color: var(--sky-top, #032679);
+  background: linear-gradient(to bottom, var(--sky-top) 50%, var(--ocean-floor) 50%);
+  background-attachment: fixed; /* Keeps colors anchored to viewport edges */
+  color-scheme: dark; /* Tells the browser to use dark scrollbars/UI chrome */
 }
 
 body {
