@@ -202,6 +202,7 @@ let _lastSurfGrad   = '';
 let _lastWaveColor  = '';
 let _lastOceanGrad  = '';
 let _lastFooterColor = '';
+let _lastSkyTop      = '';
 
 /**
  * Apply gradient outputs for the given hour.
@@ -213,6 +214,17 @@ function applyGradients(hours, skyOnly) {
   const skyB   = getSkyBlend(hours);
   const oceanB = getOceanBlend(hours);
   paintSkyGradient(hours, skyB);
+  // Exact topmost-pixel colour of the sky canvas — used as the html overscroll background
+  {
+    const { from: _f, to: _t, t: _bt } = skyB;
+    const _sa = SKY_STOPS[_f], _sb = SKY_STOPS[_t];
+    const [_r, _g, _b] = lerpRGB(lerpRGB(_sa[0], _sb[0], _bt), lerpRGB(_sa[1], _sb[1], _bt), 10 / 30);
+    const _skyTop = `rgb(${_r},${_g},${_b})`;
+    if (_skyTop !== _lastSkyTop) {
+      _lastSkyTop = _skyTop;
+      document.documentElement.style.setProperty('--sky-top', _skyTop);
+    }
+  }
   window._starVisibility = getStarVisibility(hours, skyB);
   const surfGrad = buildSurfaceGradient(hours, skyB);
   if (surfGrad !== _lastSurfGrad) {
@@ -410,8 +422,161 @@ function getMoonPhase() {
   if (DEV && devMoonPhase !== null) return devMoonPhase;
   const refNewMoon = Date.UTC(2000, 0, 6, 18, 14, 0);
   const synodicMs  = 29.530588853 * 24 * 60 * 60 * 1000;
-  const elapsed    = Date.now() - refNewMoon;
+  const base       = (window._currentDate instanceof Date) ? window._currentDate.getTime() : Date.now();
+  const elapsed    = base - refNewMoon;
   return ((elapsed % synodicMs) + synodicMs) % synodicMs / synodicMs;
+}
+
+// ── Moon phase label helpers ─────────────────────────────────────────────────
+
+// Valid date range for all positional data (NASA JPL Keplerian elements + eclipse table)
+const _DATA_MIN_MS = Date.UTC(2001,  0,  1,  0,  0,  0,   0); // 1 Jan 2001 UTC
+const _DATA_MAX_MS = Date.UTC(2050, 11, 31, 23, 59, 59, 999); // 31 Dec 2050 UTC
+
+/** Returns true if (today + offsetDays) falls within the supported data range. */
+function _inDataRange(offsetDays) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offsetDays);
+  const t = d.getTime();
+  return t >= _DATA_MIN_MS && t <= _DATA_MAX_MS;
+}
+
+const _SYNODIC_MS     = 29.530588853 * 24 * 60 * 60 * 1000;
+const _ANOMALISTIC_MS = 27.55455     * 24 * 60 * 60 * 1000;
+const _REF_NEW_MOON   = Date.UTC(2000, 0, 6, 18, 14, 0);      // same anchor as getMoonPhase
+const _REF_PERIGEE    = Date.UTC(2016, 10, 14, 11, 22, 0);     // Nov 14 2016 supermoon perigee
+
+// Total lunar eclipse totality windows — [greatest_eclipse_UTC_ms, half_totality_ms]
+// Source: NASA Five Millennium Catalog of Lunar Eclipses (Espenak & Meeus, GSFC)
+// Coverage: 2001–2050. Blood Moon pill shows only during actual totality.
+const _BLOOD_MOON_WINDOWS = [
+  [Date.UTC(2001,  0,  9, 20, 21, 40),  61.0 / 2 * 60000], // 2001 Jan 09
+  [Date.UTC(2003,  4, 16,  3, 41, 13),  51.4 / 2 * 60000], // 2003 May 16
+  [Date.UTC(2003, 10,  9,  1, 19, 38),  22.0 / 2 * 60000], // 2003 Nov 09
+  [Date.UTC(2004,  4,  4, 20, 31, 17),  75.5 / 2 * 60000], // 2004 May 04
+  [Date.UTC(2004,  9, 28,  3,  5, 11),  80.5 / 2 * 60000], // 2004 Oct 28
+  [Date.UTC(2007,  2,  3, 23, 21, 59),  73.4 / 2 * 60000], // 2007 Mar 03
+  [Date.UTC(2007,  7, 28, 10, 38, 27),  90.0 / 2 * 60000], // 2007 Aug 28
+  [Date.UTC(2008,  1, 21,  3, 27,  9),  49.8 / 2 * 60000], // 2008 Feb 21
+  [Date.UTC(2010, 11, 21,  8, 18,  4),  72.3 / 2 * 60000], // 2010 Dec 21
+  [Date.UTC(2011,  5, 15, 20, 13, 43), 100.2 / 2 * 60000], // 2011 Jun 15
+  [Date.UTC(2011, 11, 10, 14, 32, 56),  51.1 / 2 * 60000], // 2011 Dec 10
+  [Date.UTC(2014,  3, 15,  7, 46, 48),  77.8 / 2 * 60000], // 2014 Apr 15
+  [Date.UTC(2014,  9,  8, 10, 55, 44),  58.8 / 2 * 60000], // 2014 Oct 08
+  [Date.UTC(2015,  3,  4, 12,  1, 24),   4.7 / 2 * 60000], // 2015 Apr 04
+  [Date.UTC(2015,  8, 28,  2, 48, 17),  71.9 / 2 * 60000], // 2015 Sep 28
+  [Date.UTC(2018,  0, 31, 13, 31,  0),  76.1 / 2 * 60000], // 2018 Jan 31
+  [Date.UTC(2018,  6, 27, 20, 22, 54), 103.0 / 2 * 60000], // 2018 Jul 27 (longest of century)
+  [Date.UTC(2019,  0, 21,  5, 13, 27),  62.0 / 2 * 60000], // 2019 Jan 21
+  [Date.UTC(2021,  4, 26, 11, 19, 53),  14.5 / 2 * 60000], // 2021 May 26
+  [Date.UTC(2022,  4, 16,  4, 12, 42),  84.9 / 2 * 60000], // 2022 May 16
+  [Date.UTC(2022, 10,  8, 11,  0, 22),  85.0 / 2 * 60000], // 2022 Nov 08
+  [Date.UTC(2025,  2, 14,  6, 59, 56),  65.4 / 2 * 60000], // 2025 Mar 14
+  [Date.UTC(2025,  8,  7, 18, 12, 58),  82.1 / 2 * 60000], // 2025 Sep 07
+  [Date.UTC(2026,  2,  3, 11, 34, 52),  58.3 / 2 * 60000], // 2026 Mar 03
+  [Date.UTC(2028, 11, 31, 16, 53, 15),  71.3 / 2 * 60000], // 2028 Dec 31
+  [Date.UTC(2029,  5, 26,  3, 23, 22), 101.9 / 2 * 60000], // 2029 Jun 26
+  [Date.UTC(2029, 11, 20, 22, 43, 12),  53.7 / 2 * 60000], // 2029 Dec 20
+  [Date.UTC(2032,  3, 25, 15, 14, 51),  65.5 / 2 * 60000], // 2032 Apr 25
+  [Date.UTC(2032,  9, 18, 19,  3, 40),  47.1 / 2 * 60000], // 2032 Oct 18
+  [Date.UTC(2033,  3, 14, 19, 13, 51),  49.2 / 2 * 60000], // 2033 Apr 14
+  [Date.UTC(2033,  9,  8, 10, 56, 23),  78.8 / 2 * 60000], // 2033 Oct 08
+  [Date.UTC(2036,  1, 11, 22, 13,  6),  74.5 / 2 * 60000], // 2036 Feb 11
+  [Date.UTC(2036,  7,  7,  2, 52, 32),  95.3 / 2 * 60000], // 2036 Aug 07
+  [Date.UTC(2037,  0, 31, 14,  1, 38),  63.7 / 2 * 60000], // 2037 Jan 31
+  [Date.UTC(2040,  4, 26, 11, 46, 22),  92.2 / 2 * 60000], // 2040 May 26
+  [Date.UTC(2040, 10, 18, 19,  4, 40),  87.8 / 2 * 60000], // 2040 Nov 18
+  [Date.UTC(2043,  2, 25, 14, 32,  4),  53.4 / 2 * 60000], // 2043 Mar 25
+  [Date.UTC(2043,  8, 19,  1, 51, 50),  71.7 / 2 * 60000], // 2043 Sep 19
+  [Date.UTC(2044,  2, 13, 19, 38, 33),  66.4 / 2 * 60000], // 2044 Mar 13
+  [Date.UTC(2044,  8,  7, 11, 20, 44),  33.9 / 2 * 60000], // 2044 Sep 07
+  [Date.UTC(2047,  0, 12,  1, 26, 14),  70.0 / 2 * 60000], // 2047 Jan 12
+  [Date.UTC(2047,  6,  7, 10, 35, 45), 100.8 / 2 * 60000], // 2047 Jul 07
+  [Date.UTC(2048,  0,  1,  6, 53, 55),  55.9 / 2 * 60000], // 2048 Jan 01
+  [Date.UTC(2050,  4,  6, 22, 32,  2),  43.2 / 2 * 60000], // 2050 May 06
+  [Date.UTC(2050,  9, 30,  3, 21, 47),  34.5 / 2 * 60000], // 2050 Oct 30
+];
+
+const _NAMED_FULL_MOONS = [
+  'Wolf Moon', 'Snow Moon', 'Worm Moon', 'Pink Moon', 'Flower Moon',
+  'Strawberry Moon', 'Buck Moon', 'Sturgeon Moon', 'Corn Moon',
+  "Hunter's Moon", 'Beaver Moon', 'Cold Moon',
+];
+
+/** Approximate date of the autumnal equinox (Jean Meeus, ±1–2 days). */
+function _autumnalEquinoxDate(year) {
+  const k   = (year - 2000) / 1000.0;
+  const jde = 2451810.21715 + 365242.01767 * k
+            - 0.11575 * k * k + 0.00337 * k * k * k + 0.00078 * k * k * k * k;
+  return new Date(Date.UTC(2000, 0, 1, 12) + (jde - 2451545.0) * 86400000);
+}
+
+/** Date of the full moon nearest to the given date. */
+function _nearestFullMoon(date) {
+  const elapsed = date.getTime() - _REF_NEW_MOON;
+  const phase   = ((elapsed % _SYNODIC_MS) + _SYNODIC_MS) % _SYNODIC_MS / _SYNODIC_MS;
+  let   dPhase  = 0.5 - phase;
+  if (dPhase >  0.5) dPhase -= 1;
+  if (dPhase < -0.5) dPhase += 1;
+  return new Date(date.getTime() + dPhase * _SYNODIC_MS);
+}
+
+/**
+ * Returns the hover pill label for the moon.
+ * phase — current lunar phase [0, 1); date — display date for calendar lookups.
+ * Full moons with multiple applicable titles are joined with ' · '.
+ */
+function getMoonLabel(phase, date) {
+  // ── Basic 8-phase label ──────────────────────────────────────────────────
+  let baseName;
+  if      (phase < 0.0625 || phase >= 0.9375) baseName = 'New Moon';
+  else if (phase < 0.1875)                    baseName = 'Waxing Crescent';
+  else if (phase < 0.3125)                    baseName = 'First Quarter';
+  else if (phase < 0.4375)                    baseName = 'Waxing Gibbous';
+  else if (phase < 0.5625)                    baseName = 'Full Moon';
+  else if (phase < 0.6875)                    baseName = 'Waning Gibbous';
+  else if (phase < 0.8125)                    baseName = 'Last Quarter';
+  else                                        baseName = 'Waning Crescent';
+
+  if (baseName !== 'Full Moon') return baseName;
+
+  // ── Full moon — collect titles in display-priority order ────────────────
+  // Tier 1: recognised special names  (Blue Moon, Blood Moon)
+  // Tier 2: month-tied names           (Harvest / Hunter's / named moon)
+  // Tier 3: orbital descriptors        (Supermoon / Micromoon)
+  const titles = [];
+  const fm     = _nearestFullMoon(date); // precise full moon date
+
+  // Tier 1a — Blue Moon (second full moon in the same calendar month)
+  const prevFM = new Date(fm.getTime() - _SYNODIC_MS);
+  if (prevFM.getMonth() === fm.getMonth() && prevFM.getFullYear() === fm.getFullYear()) {
+    titles.push('Blue Moon');
+  }
+
+  // Tier 1b — Blood Moon (within totality window of a total lunar eclipse)
+  const _bmMs = date.getTime();
+  for (const [_greatest, _halfTotal] of _BLOOD_MOON_WINDOWS) {
+    if (Math.abs(_bmMs - _greatest) <= _halfTotal) { titles.push('Blood Moon'); break; }
+  }
+
+  // Tier 2 — month-tied name (Harvest Moon, Hunter's Moon, or standard named moon)
+  const harvest     = _nearestFullMoon(_autumnalEquinoxDate(fm.getFullYear()));
+  const harvestDiff = Math.abs(fm.getTime() - harvest.getTime());
+  const hunter      = new Date(harvest.getTime() + _SYNODIC_MS);
+  const hunterDiff  = Math.abs(fm.getTime() - hunter.getTime());
+
+  if      (harvestDiff < _SYNODIC_MS * 0.1)  titles.push('Harvest Moon');
+  else if (hunterDiff  < _SYNODIC_MS * 0.1)  titles.push("Hunter's Moon");
+  else                                         titles.push(_NAMED_FULL_MOONS[fm.getMonth()]);
+
+  // Tier 3 — orbital descriptor (Supermoon / Micromoon)
+  const anomElapsed = date.getTime() - _REF_PERIGEE;
+  const anomPhase   = ((anomElapsed % _ANOMALISTIC_MS) + _ANOMALISTIC_MS) % _ANOMALISTIC_MS / _ANOMALISTIC_MS;
+  if      (anomPhase < 0.12 || anomPhase > 0.88) titles.push('Supermoon');
+  else if (anomPhase > 0.38 && anomPhase < 0.62) titles.push('Micromoon');
+
+  return titles.join(' · ');
 }
 
 /**
@@ -468,7 +633,6 @@ function drawMoonPhase(canvas, phase) {
 
 // ── Sun / Moon arc ───────────────────────────────────────────────────────────
 
-let _lastDrawnMoonPhase = -1;
 
 // TODO: atmospheric scattering -- tint the sun via --sun-color based on arc position t
 // (white at zenith t=0.5, amber near horizon t~0 or t~1). No canvas needed; just a
@@ -501,22 +665,15 @@ function placeSunMoon(secondsSinceMidnight) {
     sun.style.setProperty('--sun-left', arcX(t) + '%');
     sun.style.setProperty('--sun-top',  arcY(t) + '%');
     moonCanvas.style.visibility = 'hidden';
-    _lastDrawnMoonPhase = -1;
   } else if (dayPct <= 49 || dayPct >= 151) {
     const moonPct = dayPct >= 151 ? dayPct : dayPct + 200;
     const t = (moonPct - 151) / 98;
     moonCanvas.style.visibility = 'visible';
     moonCanvas.style.left = arcX(t) + '%';
     moonCanvas.style.top  = arcY(t) + '%';
-    // Skip canvas redraw while user is actively dragging — position still updates.
-    // On release, the next second-interval tick will repaint the phase correctly.
-    const phase   = getMoonPhase();
-    const rounded = Math.round(phase * 10000) / 10000;
-    const dragging = clockScrubber && clockScrubber.active;
-    if (!dragging && rounded !== _lastDrawnMoonPhase) {
-      _lastDrawnMoonPhase = rounded;
-      drawMoonPhase(moonCanvas, phase);
-    }
+    // Always redraw the moon canvas — cheap arc draw, and omitting it
+    // leaves a blank canvas if the user drags to nighttime from daytime.
+    drawMoonPhase(moonCanvas, getMoonPhase());
     sun.style.setProperty('--sun-vis', 'hidden');
   } else {
     sun.style.setProperty('--sun-vis',  'hidden');
@@ -675,6 +832,10 @@ class ClockScrubber {
       document.documentElement.classList.remove('scrubbing');
       if (!this.active) return;
       this.active = false;
+      // Draw the moon immediately — the 1-second interval is blocked while
+      // _overriding is true, so without this the canvas stays blank after
+      // the user scrubs to a nighttime position and then releases.
+      placeSunMoon(this.secs);
       requestAnimationFrame(() => applyGradients(this.secs / 3600));
     };
     window.addEventListener('mouseup',  _onRelease);
@@ -753,8 +914,11 @@ class ClockScrubber {
     // Forward (clockwise, ~23:59 → 00:00): delta is large negative  → offset +1
     // Backward (counter-clockwise, 00:00 → ~23:59): delta is large positive → offset -1
     const _delta = this.secs - _prev;
-    if (_delta < -43200)      this._dateOffset += 1;
-    else if (_delta > 43200)  this._dateOffset -= 1;
+    if (_delta < -43200) {
+      if (_inDataRange(this._dateOffset + 1)) this._dateOffset += 1;
+    } else if (_delta > 43200) {
+      if (_inDataRange(this._dateOffset - 1)) this._dateOffset -= 1;
+    }
     window._currentDate = this._getOffsetDate();
     this._updateDatePill();
 
@@ -1053,10 +1217,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const cs   = clockScrubber;
         if (!cs) return;
         const step = e.key === '[' ? -1 : 1;
+        if (!_inDataRange(cs._dateOffset + step)) return;
         cs._dateOffset += step;
         cs._prevSecs    = cs.secs; // prevent false midnight-crossing on next drag
         window._currentDate = cs._getOffsetDate();
         cs._updateDatePill();
+        placeSunMoon(cs.secs);
         if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
       }
       // Escape or 0 — reset date to today
@@ -1067,8 +1233,76 @@ document.addEventListener('DOMContentLoaded', () => {
         cs._prevSecs    = cs.secs;
         window._currentDate = null;
         cs._updateDatePill();
+        placeSunMoon(cs.secs);
         if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
       }
+    });
+  }
+
+  // ── Moon hover pill ───────────────────────────────────────────────────────
+  const _moonEl   = document.getElementById('moon-canvas');
+  const _skyHero  = document.getElementById('sky-hero');
+  if (_moonEl && _skyHero) {
+    const _moonPill = document.createElement('div');
+    Object.assign(_moonPill.style, {
+      position:     'absolute',
+      zIndex:       '10',
+      background:   'rgba(0,0,0,0.52)',
+      border:       '1px solid rgba(255,255,255,0.18)',
+      borderRadius: '999px',
+      color:        'rgba(255,255,255,0.82)',
+      fontFamily:   'Montserrat,-apple-system,sans-serif',
+      fontSize:     '0.62rem',
+      fontWeight:   '700',
+      letterSpacing:'0.1em',
+      textTransform:'uppercase',
+      padding:      '5px 12px',
+      pointerEvents:'none',
+      opacity:      '0',
+      transition:   'opacity 0.15s ease',
+      whiteSpace:   'nowrap',
+    });
+    _skyHero.appendChild(_moonPill);
+
+    const _positionAndShowPill = () => {
+      const phase = getMoonPhase();
+      const date  = (window._currentDate instanceof Date) ? window._currentDate : new Date();
+      _moonPill.textContent = getMoonLabel(phase, date);
+      const hr = _skyHero.getBoundingClientRect();
+      const mr = _moonEl.getBoundingClientRect();
+      const pw = _moonPill.offsetWidth  || 120;
+      const ph = _moonPill.offsetHeight || 22;
+      // 5 px outside the moon disc edge (disc radius = canvas/2 - 6 = 29 px).
+      const _mr = 29;
+      const cx  = mr.left - hr.left + mr.width  / 2;
+      const cy  = mr.top  - hr.top  + mr.height / 2;
+      const px  = Math.min(cx + _mr + 5, hr.width - pw - 8);
+      const py  = Math.max(cy - _mr - 5 - ph, 4);
+      _moonPill.style.left    = px + 'px';
+      _moonPill.style.top     = py + 'px';
+      _moonPill.style.opacity = '1';
+    };
+
+    // pointer-events: none is on the canvas, so use mousemove proximity
+    // detection on the sky hero instead of mouseenter/mouseleave.
+    let _moonPillShown = false;
+    _skyHero.addEventListener('mousemove', e => {
+      if (_moonEl.style.visibility !== 'visible') return;
+      const mr   = _moonEl.getBoundingClientRect();
+      const cx   = mr.left + mr.width  / 2;
+      const cy   = mr.top  + mr.height / 2;
+      const near = Math.hypot(e.clientX - cx, e.clientY - cy) < mr.width / 2 + 12;
+      if (near && !_moonPillShown) {
+        _moonPillShown = true;
+        _positionAndShowPill();
+      } else if (!near && _moonPillShown) {
+        _moonPillShown = false;
+        _moonPill.style.opacity = '0';
+      }
+    });
+    _skyHero.addEventListener('mouseleave', () => {
+      _moonPillShown = false;
+      _moonPill.style.opacity = '0';
     });
   }
 });
