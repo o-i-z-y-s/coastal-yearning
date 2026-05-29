@@ -656,7 +656,7 @@ class ClockScrubber {
     this.canvas.addEventListener('mousedown',  e => this._down(ev(e)));
     this.canvas.addEventListener('touchstart', e => this._down(ev(e)), { passive: false });
     window.addEventListener('mousemove',  e => this._move(ev(e)));
-    window.addEventListener('touchmove',  e => { e.preventDefault(); this._move(ev(e)); }, { passive: false });
+    window.addEventListener('touchmove',  e => { if (this.active) { e.preventDefault(); this._move(ev(e)); } }, { passive: false });
     // On release: mark inactive, then do one full gradient sync for the ocean section.
     const _onRelease = () => {
       if (!this.active) return;
