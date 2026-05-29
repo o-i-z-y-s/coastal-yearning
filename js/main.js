@@ -631,6 +631,21 @@ function drawMoonPhase(canvas, phase) {
   ctx.restore();                           // restore A
 }
 
+/**
+ * Draws an opaque dark disc on the occluder canvas so stars are hidden
+ * behind the moon's dark side without triggering the lit-side glow filter.
+ */
+function drawMoonOccluder(canvas) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 6;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(4, 6, 18, 0.97)';
+  ctx.fill();
+}
+
 // ── Sun / Moon arc ───────────────────────────────────────────────────────────
 
 
@@ -646,16 +661,32 @@ function placeSunMoon(secondsSinceMidnight) {
   const arcX = t => X_RISE + (X_SET - X_RISE) * t;
   const arcY = t => HORIZON_Y - ARC_H * Math.sin(Math.PI * t);
 
-  const sun        = _el.sun;
-  const moonCanvas = _el.moon;
+  const sun         = _el.sun;
+  const moonCanvas  = _el.moon;
+  const moonOccluder = _el.moonOccluder;
   if (!sun || !moonCanvas) return;
+
+  const _showMoon = (left, top, phase) => {
+    moonCanvas.style.left       = left;
+    moonCanvas.style.top        = top;
+    moonCanvas.style.visibility = 'visible';
+    drawMoonPhase(moonCanvas, phase);
+    if (moonOccluder) {
+      moonOccluder.style.left       = left;
+      moonOccluder.style.top        = top;
+      moonOccluder.style.visibility = 'visible';
+      drawMoonOccluder(moonOccluder);
+    }
+  };
+
+  const _hideMoon = () => {
+    moonCanvas.style.visibility = 'hidden';
+    if (moonOccluder) moonOccluder.style.visibility = 'hidden';
+  };
 
   if (DEV && devMoonPhase !== null) {
     sun.style.setProperty('--sun-vis', 'hidden');
-    moonCanvas.style.visibility = 'visible';
-    moonCanvas.style.left = '50%';
-    moonCanvas.style.top  = arcY(0.5) + '%';
-    drawMoonPhase(moonCanvas, devMoonPhase);
+    _showMoon('50%', arcY(0.5) + '%', devMoonPhase);
     return;
   }
 
@@ -664,20 +695,16 @@ function placeSunMoon(secondsSinceMidnight) {
     sun.style.setProperty('--sun-vis',  'visible');
     sun.style.setProperty('--sun-left', arcX(t) + '%');
     sun.style.setProperty('--sun-top',  arcY(t) + '%');
-    moonCanvas.style.visibility = 'hidden';
+    _hideMoon();
   } else if (dayPct <= 49 || dayPct >= 151) {
     const moonPct = dayPct >= 151 ? dayPct : dayPct + 200;
     const t = (moonPct - 151) / 98;
-    moonCanvas.style.visibility = 'visible';
-    moonCanvas.style.left = arcX(t) + '%';
-    moonCanvas.style.top  = arcY(t) + '%';
-    // Always redraw the moon canvas — cheap arc draw, and omitting it
-    // leaves a blank canvas if the user drags to nighttime from daytime.
-    drawMoonPhase(moonCanvas, getMoonPhase());
+    // Always redraw — cheap, and omitting leaves blank canvas if dragged from daytime.
+    _showMoon(arcX(t) + '%', arcY(t) + '%', getMoonPhase());
     sun.style.setProperty('--sun-vis', 'hidden');
   } else {
-    sun.style.setProperty('--sun-vis',  'hidden');
-    moonCanvas.style.visibility = 'hidden';
+    sun.style.setProperty('--sun-vis', 'hidden');
+    _hideMoon();
   }
 }
 
@@ -885,8 +912,14 @@ class ClockScrubber {
   }
 
   _down(e) {
+    const _r  = this.canvas.getBoundingClientRect();
+    const _cx = _r.left + _r.width  / 2;
+    const _cy = _r.top  + _r.height / 2;
+    // Only activate if the touch is within the clock circle — prevents
+    // touches on the nearby moon (same screen area) from hijacking the scrubber.
+    if (Math.hypot(e.clientX - _cx, e.clientY - _cy) > _r.width / 2) return;
     this.active        = true;
-    this._canvasRect   = this.canvas.getBoundingClientRect();
+    this._canvasRect   = _r;
     window._scrubbing  = true;
     document.documentElement.classList.add('scrubbing');
     this._pendingX = e.clientX;
@@ -1067,6 +1100,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _el.scrubberDate   = document.getElementById('scrubber-date');
   _el.sun            = document.getElementById('sun');
   _el.moon           = document.getElementById('moon-canvas');
+  _el.moonOccluder   = document.getElementById('moon-occluder');
   _el.wavePaths      = Array.from(document.querySelectorAll('.wave-path'));
 
   renderContent();
@@ -1309,9 +1343,17 @@ document.addEventListener('DOMContentLoaded', () => {
         _moonPill.style.opacity = '0';
       }
     };
-    _skyHero.addEventListener('pointermove', e => _checkMoonProximity(e.clientX, e.clientY));
-    _skyHero.addEventListener('pointerdown', e => _checkMoonProximity(e.clientX, e.clientY));
-    _skyHero.addEventListener('pointerleave', () => {
+    _skyHero.addEventListener('pointermove', e => {
+      if (e.pointerType === 'touch') return; // touch doesn't hover
+      _checkMoonProximity(e.clientX, e.clientY);
+    });
+    _skyHero.addEventListener('pointerdown', e => {
+      // Show pill on touch-near-moon; hide if touch elsewhere (both desktop + mobile).
+      _checkMoonProximity(e.clientX, e.clientY);
+    });
+    // pointerleave fires on touch-end on mobile — only hide for non-touch.
+    _skyHero.addEventListener('pointerleave', e => {
+      if (e.pointerType === 'touch') return;
       _moonPillShown = false;
       _moonPill.style.opacity = '0';
     });
