@@ -1,0 +1,11 @@
+[
+  {
+    "path": "/",
+    "scores": [
+      { "id": "performance",    "minScore": 0.90 },
+      { "id": "accessibility",  "minScore": 0.95 },
+      { "id": "best-practices", "minScore": 0.90 },
+      { "id": "seo",            "minScore": 0.90 }
+    ]
+  }
+]

@@ -857,6 +857,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.documentElement.style.setProperty('--ocean-floor', _bootTheme.oceanFloor);
   _setThemeColor(_bootTheme.pulldown);
   _setFavicon(_bootSecs / 3600);
+  // Lock sky height to the initial viewport — prevents iOS nav-bar resize from reflowing the sky.
+  document.documentElement.style.setProperty('--sky-h', window.innerHeight + 'px');
   _resizeGradientCanvas();           // sizes canvas before first paint
   applyGradients(_bootSecs / 3600);  // single paint on a correctly-sized canvas
   placeSunMoon(_bootSecs);
@@ -893,7 +895,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('resize', () => {
     _resizeGradientCanvas();
-    placeSunMoon(getSecondsNow());
+    // Respect manual override -- iOS fires resize when nav bars show/hide,
+    // which would otherwise snap the sun/moon back to real time.
+    const _rsecs = (manualOverride && clockScrubber) ? clockScrubber.secs : getSecondsNow();
+    placeSunMoon(_rsecs);
     if (clockScrubber) clockScrubber._canvasRect = null;
   });
 

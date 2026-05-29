@@ -1,0 +1,26 @@
+name: Lighthouse CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Serve site locally
+        run: python3 -m http.server 8080 &
+
+      - name: Wait for server
+        run: sleep 2
+
+      - name: Run Lighthouse
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            http://localhost:8080
+          budgetPath: .github/lighthouse-budget.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true

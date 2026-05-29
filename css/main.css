@@ -193,7 +193,9 @@ a { color: inherit; text-decoration: none; }
 
 #sky-hero {
   position: relative;
-  height: 100vh;
+  /* Height is locked at page load via --sky-h (set by JS) so iOS nav-bar
+     collapse/expand never reflowing the sky. Falls back to svh (stable) then vh. */
+  height: var(--sky-h, 100svh);
   overflow: hidden;
   /* Stacking context above the fixed bubbles canvas (z-index 0),
      so the sky gradient background covers it when scrolled to top */
@@ -375,9 +377,11 @@ a { color: inherit; text-decoration: none; }
   transition: background 0.8s ease;
 }
 
-/* Bubbles canvas — fixed, behind ocean content */
+/* Bubbles canvas — fills the ocean section, scrolls with it.
+   Keeps bubbles in the ocean only (no bleed into sky or footer) and
+   prevents the sand from dragging up to reveal the canvas underneath. */
 #bubbles-canvas {
-  position: fixed;
+  position: absolute;
   z-index: 0;
   top: 0;
   left: 0;
@@ -562,15 +566,15 @@ a { color: inherit; text-decoration: none; }
     font-size: 2.8rem;
   }
 
-  /* Sky: use dynamic viewport height so waves and scroll cue stay on screen.
-     Falls back to 100vh on older browsers. */
-  #sky-hero {
-    height: 100vh;
-    height: 100dvh;
-  }
-
   /* Nudge scroll cue up so it clears the wave divider on small screens */
   .scroll-cue {
     bottom: 22%;
+  }
+
+  /* Taller sand on mobile — more beach, less clipped */
+  #footer {
+    min-height: 110px;
+    padding-top: 2.5rem;
+    padding-bottom: 2rem;
   }
 }
