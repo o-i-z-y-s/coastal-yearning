@@ -832,9 +832,13 @@ class ClockScrubber {
       document.documentElement.classList.remove('scrubbing');
       if (!this.active) return;
       this.active = false;
-      // Draw the moon immediately — the 1-second interval is blocked while
-      // _overriding is true, so without this the canvas stays blank after
-      // the user scrubs to a nighttime position and then releases.
+      // Eagerly mark _overriding before the next RAF so the 1-second interval
+      // can't fire with getSecondsNow() and erase the scrubbed position before
+      // _process() gets a chance to confirm the deviation.
+      const _relSecs = getSecondsNow();
+      let   _relDiff = Math.abs(this.secs - _relSecs);
+      if (_relDiff > 43200) _relDiff = 86400 - _relDiff;
+      if (_relDiff >= 120) this._overriding = true;
       placeSunMoon(this.secs);
       requestAnimationFrame(() => applyGradients(this.secs / 3600));
     };
@@ -1273,25 +1277,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const pw = _moonPill.offsetWidth  || 120;
       const ph = _moonPill.offsetHeight || 22;
       // 5 px outside the moon disc edge (disc radius = canvas/2 - 6 = 29 px).
+      // Pill sits below the moon so it doesn't crowd the top of the screen.
       const _mr = 29;
       const cx  = mr.left - hr.left + mr.width  / 2;
       const cy  = mr.top  - hr.top  + mr.height / 2;
-      const px  = Math.min(cx + _mr + 5, hr.width - pw - 8);
-      const py  = Math.max(cy - _mr - 5 - ph, 4);
+      const px  = Math.min(cx - pw / 2, hr.width - pw - 8);
+      const py  = Math.min(cy + _mr + 5, hr.height - ph - 8);
       _moonPill.style.left    = px + 'px';
       _moonPill.style.top     = py + 'px';
       _moonPill.style.opacity = '1';
     };
 
-    // pointer-events: none is on the canvas, so use mousemove proximity
-    // detection on the sky hero instead of mouseenter/mouseleave.
+    // pointer-events: none is on the canvas — use pointer proximity on the
+    // sky hero instead of mouseenter/mouseleave.  pointerdown handles taps
+    // on mobile (where pointermove never fires for a stationary touch).
     let _moonPillShown = false;
-    _skyHero.addEventListener('mousemove', e => {
-      if (_moonEl.style.visibility !== 'visible') return;
+    const _checkMoonProximity = (clientX, clientY) => {
+      if (_moonEl.style.visibility !== 'visible') { 
+        if (_moonPillShown) { _moonPillShown = false; _moonPill.style.opacity = '0'; }
+        return;
+      }
       const mr   = _moonEl.getBoundingClientRect();
       const cx   = mr.left + mr.width  / 2;
       const cy   = mr.top  + mr.height / 2;
-      const near = Math.hypot(e.clientX - cx, e.clientY - cy) < mr.width / 2 + 12;
+      const near = Math.hypot(clientX - cx, clientY - cy) < mr.width / 2 + 12;
       if (near && !_moonPillShown) {
         _moonPillShown = true;
         _positionAndShowPill();
@@ -1299,8 +1308,10 @@ document.addEventListener('DOMContentLoaded', () => {
         _moonPillShown = false;
         _moonPill.style.opacity = '0';
       }
-    });
-    _skyHero.addEventListener('mouseleave', () => {
+    };
+    _skyHero.addEventListener('pointermove', e => _checkMoonProximity(e.clientX, e.clientY));
+    _skyHero.addEventListener('pointerdown', e => _checkMoonProximity(e.clientX, e.clientY));
+    _skyHero.addEventListener('pointerleave', () => {
       _moonPillShown = false;
       _moonPill.style.opacity = '0';
     });
