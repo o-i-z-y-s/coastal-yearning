@@ -551,4 +551,26 @@ a { color: inherit; text-decoration: none; }
 }
 @keyframes wave-flow {
   from { transform: translateX(0); }
-  to   { transform: translateX(-50%); 
+  to   { transform: translateX(-50%); }
+}
+
+/* ── Mobile ─────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  /* Name: scale down so it fits without wrapping */
+  #hero-name {
+    font-size: 2.8rem;
+  }
+
+  /* Sky: use dynamic viewport height so waves and scroll cue stay on screen.
+     Falls back to 100vh on older browsers. */
+  #sky-hero {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Nudge scroll cue up so it clears the wave divider on small screens */
+  .scroll-cue {
+    bottom: 22%;
+  }
+}
