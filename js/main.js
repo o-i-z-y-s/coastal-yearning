@@ -593,7 +593,18 @@ function renderContent() {
   }
 
   const ftEl = document.getElementById('footer-text');
-  if (ftEl) ftEl.textContent = C.footerText;
+  if (ftEl) {
+    ftEl.textContent = C.footerText;
+    // Visitor counter -- fetch after rendering base text
+    fetch('https://api.jordanfluitt.com/visits')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && typeof data.count === 'number' && ftEl) {
+          ftEl.textContent = C.footerText + '  ·  ' + data.count.toLocaleString() + ' visits';
+        }
+      })
+      .catch(() => { /* counter unavailable -- fail silently */ });
+  }
 }
 
 // ── Time toggle ──────────────────────────────────────────────────────────────
@@ -913,6 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }));
     _scrubToggle.addEventListener('click', () => {
       const tc        = document.getElementById('time-controls');
+      if (tc) tc.classList.add('user-interacted'); // enable transitions from first click onward
       const collapsed = tc ? !tc.classList.contains('scrubber-collapsed') : false;
       _applyCollapse(collapsed);
       localStorage.setItem(_CKEY, collapsed ? '1' : '0');
