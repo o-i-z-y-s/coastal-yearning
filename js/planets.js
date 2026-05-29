@@ -1,6 +1,6 @@
 /**
  * planets.js -- solar system bodies visible in the western sky
- * over coastal California (36 deg N, 121 deg W).
+ * over coastal California (35 deg N, 120 deg W).
  *
  * Positions computed from simplified Keplerian orbital elements
  * (NASA JPL approximation, accurate to ~1 arc-minute, 1800-2050).
@@ -20,8 +20,8 @@
 
 const _D2R = Math.PI / 180;
 const _R2D = 180 / Math.PI;
-const _OBS_LAT = 36.0 * _D2R;   // coastal California
-const _OBS_LON = -121.0;          // degrees east (negative = west)
+const _OBS_LAT = 35.0 * _D2R;   // coastal California
+const _OBS_LON = -120.0;          // degrees east (negative = west)
 
 // ── Planetary visual properties + Keplerian elements ─────────────────────────
 // Elements: [J2000.0 value, rate per Julian century]
@@ -248,10 +248,7 @@ class PlanetRenderer {
   }
 
   _getDisplayDate() {
-    // Priority: date-advanced scrubber > dev key > today
-    const base = (window._currentDate   instanceof Date) ? window._currentDate
-               : (window._devPlanetDate instanceof Date) ? window._devPlanetDate
-               : new Date();
+    const base = (window._currentDate instanceof Date) ? window._currentDate : new Date();
     if (typeof window._currentSecs === 'number') {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
       d.setSeconds(window._currentSecs);
@@ -390,87 +387,4 @@ class PlanetRenderer {
 
   window._planetRenderer = new PlanetRenderer();
 
-  // ── Dev: [ and ] step the date back/forward by one week ─────────────────
-  // Useful for watching planets arc across the sky over months.
-  // Press Escape or 0 to return to today.
-
-  let _devLabel = null;
-
-  function _showDevDate(d) {
-    if (!_devLabel) {
-      _devLabel = document.createElement('div');
-      Object.assign(_devLabel.style, {
-        position: 'fixed', bottom: '1rem', left: '50%',
-        transform: 'translateX(-50%)',
-        background: 'rgba(0,0,0,0.55)',
-        border: '1px solid rgba(255,255,255,0.18)',
-        borderRadius: '999px',
-        color: 'rgba(255,255,255,0.8)',
-        fontFamily: 'Montserrat, sans-serif',
-        fontSize: '0.65rem', fontWeight: '700',
-        letterSpacing: '0.1em', textTransform: 'uppercase',
-        padding: '5px 14px',
-        pointerEvents: 'none',
-        zIndex: '150',
-      });
-      document.body.appendChild(_devLabel);
-    }
-    if (d) {
-      _devLabel.textContent = 'Planet dev: ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      _devLabel.style.opacity = '1';
-    } else {
-      _devLabel.textContent = '';
-      _devLabel.style.opacity = '0';
-    }
-  }
-  // Exposed so main.js can sync the dev label when the scrubber crosses midnight.
-  window._showPlanetDevDate = _showDevDate;
-
-  document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    const step = 7 * 24 * 3600 * 1000; // one week in ms
-
-    // Recalibrate the scrubber's day-offset counter and pill to match d.
-    function _syncScrubber(d) {
-      const cs = window._clockScrubber;
-      if (!cs) return;
-      if (d) {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const target = new Date(d); target.setHours(0, 0, 0, 0);
-        cs._dateOffset = Math.round((target - today) / 86400000);
-        window._currentDate = cs._getOffsetDate();
-      } else {
-        cs._dateOffset = 0;
-        window._currentDate = null;
-      }
-      cs._prevSecs = cs.secs; // prevent a false midnight-crossing on next drag
-      cs._updateDatePill();
-    }
-
-    if (e.key === '[') {
-      // Step back one week from whichever date is currently displayed
-      const base = (window._currentDate instanceof Date)   ? window._currentDate
-                 : (window._devPlanetDate instanceof Date) ? window._devPlanetDate
-                 : new Date();
-      const d = new Date(base.getTime() - step);
-      window._devPlanetDate = d;
-      _syncScrubber(d);
-      if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
-      _showDevDate(d);
-    } else if (e.key === ']') {
-      const base = (window._currentDate instanceof Date)   ? window._currentDate
-                 : (window._devPlanetDate instanceof Date) ? window._devPlanetDate
-                 : new Date();
-      const d = new Date(base.getTime() + step);
-      window._devPlanetDate = d;
-      _syncScrubber(d);
-      if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
-      _showDevDate(d);
-    } else if (e.key === 'Escape' || e.key === '0') {
-      window._devPlanetDate = null;
-      _syncScrubber(null);
-      if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
-      _showDevDate(null);
-    }
-  });
 })();

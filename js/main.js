@@ -684,7 +684,6 @@ class ClockScrubber {
         this._dateOffset    = 0;
         this._prevSecs      = now;
         window._currentDate = null;
-        window._devPlanetDate = null;
         this._updateDatePill();
         this.secs         = now;
         this.draw();
@@ -793,16 +792,12 @@ class ClockScrubber {
     if (!el) return;
     if (this._dateOffset === 0) {
       el.classList.remove('visible');
-      window._devPlanetDate = null;
-      if (window._showPlanetDevDate) window._showPlanetDevDate(null);
     } else {
       const d = this._getOffsetDate();
       el.textContent = d.toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric'
       });
       el.classList.add('visible');
-      window._devPlanetDate = d; // keep [/] week-skipper stepping from scrubber date
-      if (window._showPlanetDevDate) window._showPlanetDevDate(d);
     }
   }
 
@@ -956,7 +951,6 @@ document.addEventListener('DOMContentLoaded', () => {
   new BubbleParticles('bubbles-canvas');
 
   clockScrubber = new ClockScrubber('clock-canvas');
-  window._clockScrubber = clockScrubber; // read by planets.js dev key handler
 
   // ── Scrubber collapse toggle ──────────────────────────────────────────────
   const _scrubToggle = document.getElementById('scrubber-toggle');
