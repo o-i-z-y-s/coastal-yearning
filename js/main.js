@@ -904,7 +904,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // On mobile (<600px) default to collapsed if the user has never set a preference.
     const _stored = localStorage.getItem(_CKEY);
     const _defaultCollapsed = _stored !== null ? _stored === '1' : window.innerWidth < 600;
+    // Apply initial state before first paint -- js-ready enables transitions after.
     _applyCollapse(_defaultCollapsed);
+    const _tc = document.getElementById('time-controls');
+    // Double rAF: first fires before paint, second fires after -- safe to enable transitions.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (_tc) _tc.classList.add('js-ready');
+    }));
     _scrubToggle.addEventListener('click', () => {
       const tc        = document.getElementById('time-controls');
       const collapsed = tc ? !tc.classList.contains('scrubber-collapsed') : false;

@@ -69,4 +69,7 @@ window.CONTENT = {
     { title: 'Japanese',            body: 'Could survive outside Tokyo without a phone, but it would not be fun for anyone involved.' },
   ],
 
-  // ── Footer ───────────────�
+
+  footerText: 'Built by me in a dark bedroom. I miss the coast.',
+
+};
