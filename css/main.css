@@ -29,7 +29,7 @@
   --font: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; background-color: var(--ocean-floor, #001b36); }
 
 body {
   background-color: var(--pulldown);
@@ -587,6 +587,10 @@ html.scrubbing #ocean { transition: none !important; }
 @keyframes cue-bob {
   0%, 100% { transform: translateX(-50%) translateY(0);    opacity: 0.45; }
   50%      { transform: translateX(-50%) translateY(13px); opacity: 0.85; }
+}
+@keyframes wave-flow {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
 
 #controls-panel { display: flex; flex-direction: column; }
