@@ -649,10 +649,18 @@ class ClockScrubber {
     this._pendingY   = 0;
     this._rafId      = null;
 
-    const W = this.canvas.width;
-    this._handWidth = Math.max(2, Math.round(W * 0.022));
-    this._handGapR  = Math.round(W * 0.17);
-    this._fontSize  = Math.round(W * 0.10);
+    // Scale canvas buffer for device pixel ratio so it stays crisp on retina/mobile
+    const _dpr = window.devicePixelRatio || 1;
+    this._dpr  = _dpr;
+    const W    = this.canvas.width;  // logical width (140) — read before we overwrite it
+    this._logW = W;
+    this.canvas.width  = W * _dpr;
+    this.canvas.height = W * _dpr;
+    this.ctx.scale(_dpr, _dpr);
+
+    this._handWidth  = Math.max(2, Math.round(W * 0.022));
+    this._handGapR   = Math.round(W * 0.17);
+    this._fontSize   = Math.round(W * 0.10);
     this._fontString = '500 ' + this._fontSize + 'px Montserrat, sans-serif';
 
     const ev = e => e.touches ? e.touches[0] : e;
@@ -803,7 +811,7 @@ class ClockScrubber {
 
   draw() {
     const { canvas, ctx } = this;
-    const W  = canvas.width, H = canvas.height;
+    const W  = this._logW, H = this._logW;
     const cx = W / 2, cy = H / 2;
     const R  = W / 2 - 5;
     const TR = R - 9;
