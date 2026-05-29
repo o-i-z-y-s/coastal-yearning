@@ -235,6 +235,9 @@ function applyGradients(hours, skyOnly) {
   if (waveColor !== _lastWaveColor) {
     _lastWaveColor = waveColor;
     _el.wavePaths.forEach(p => p.setAttribute('fill', waveColor));
+    // Expose r,g,b components so the #ocean::before gradient can follow the same colour.
+    const _wm = waveColor.match(/(\d+),(\d+),(\d+)/);
+    if (_wm) document.documentElement.style.setProperty('--wave-rgb', `${_wm[1]},${_wm[2]},${_wm[3]}`);
   }
   if (!skyOnly) {
     const oceanGrad = buildOceanGradient(hours, oceanB);

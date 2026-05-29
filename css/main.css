@@ -444,11 +444,11 @@ html.scrubbing #ocean { transition: none !important; }
   right: 0;
   height: 110px;
   background: linear-gradient(to bottom,
-    #0e1245            0%,
-    #0e1245            7%,
-    rgba(14,18,69,0.80) 30%,
-    rgba(14,18,69,0.35) 65%,
-    transparent        100%
+    rgba(var(--wave-rgb, 14,18,69), 1)    0%,
+    rgba(var(--wave-rgb, 14,18,69), 1)    7%,
+    rgba(var(--wave-rgb, 14,18,69), 0.80) 30%,
+    rgba(var(--wave-rgb, 14,18,69), 0.35) 65%,
+    transparent                           100%
   );
   pointer-events: none;
   z-index: 1;
