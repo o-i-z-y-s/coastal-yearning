@@ -384,6 +384,11 @@ a { color: inherit; text-decoration: none; }
   animation: wave-flow 14s linear infinite;
   opacity: 0.55;
 }
+/* Rear wave is a lighter shade so it reads against the dark night sky;
+   the front wave (full opacity, darker fill) stays dominant. */
+.wave-svg--back .wave-path {
+  fill: #1e2873;
+}
 .wave-svg--front {
   animation: wave-flow 9s linear infinite;
 }
@@ -427,18 +432,26 @@ html.scrubbing #ocean { transition: none !important; }
   transition: background 0.8s ease;
 }
 
-/* Paints a sliver of ocean color above the ocean's top edge to fill any
-   compositor crack between the wave-divider and ocean on high-DPR devices. */
+/* Gradient fade at the ocean surface — does two things:
+   1. Covers the compositor crack on high-DPR/ProMotion displays (top 8px, solid fill).
+   2. Fades bubbles out naturally as they rise to the waterline (fades to transparent
+      over the top ~100px of the ocean section). */
 #ocean::before {
   content: '';
   position: absolute;
   top: -8px;
   left: 0;
   right: 0;
-  height: 8px;
-  background: inherit;
-  z-index: 0;
+  height: 110px;
+  background: linear-gradient(to bottom,
+    #0e1245            0%,
+    #0e1245            7%,
+    rgba(14,18,69,0.80) 30%,
+    rgba(14,18,69,0.35) 65%,
+    transparent        100%
+  );
   pointer-events: none;
+  z-index: 1;
 }
 
 /* Bubbles canvas — fills the ocean section, scrolls with it.

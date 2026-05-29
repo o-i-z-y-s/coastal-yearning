@@ -1150,9 +1150,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('resize', () => {
     _resizeGradientCanvas();
-    // Respect manual override -- iOS fires resize when nav bars show/hide,
+    // Respect any active override — iOS fires resize when nav bars show/hide,
     // which would otherwise snap the sun/moon back to real time.
-    const _rsecs = (manualOverride && clockScrubber) ? clockScrubber.secs : getSecondsNow();
+    // manualOverride covers the theme-button path; _overriding covers the scrubber path.
+    const _override = manualOverride || (clockScrubber && clockScrubber._overriding);
+    const _rsecs    = (_override && clockScrubber) ? clockScrubber.secs : getSecondsNow();
     placeSunMoon(_rsecs);
     if (clockScrubber) clockScrubber._canvasRect = null;
   });
