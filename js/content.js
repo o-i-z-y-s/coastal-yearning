@@ -57,7 +57,7 @@ window.CONTENT = {
     {
       title: 'This site!',
       body:  'Vanilla JS, real-time celestial body positioning, dynamic sky and ocean theming, canvas stars/bubbles. Did you check the moon phase?',
-      href:  null,
+      href:  'https://github.com/o-i-z-y-s/coastal-yearning',
     },
   ],
 
@@ -65,7 +65,7 @@ window.CONTENT = {
   also: [
     { title: 'Linguistics',         body: 'UC Santa Barbara. Studied abroad in Tokyo. This actually came in handy building hoverleser.' },
     { title: 'Localization',        body: 'Untangle Japanese works in translation when new volumes drop. I\'ve done over 50! And a game!' },
-    { title: 'German',              body: 'Can fully understand videos on geopolitics, but cannot summarize them back to you.' },
+    { title: 'German',              body: 'Fully understands videos on geopolitics, but cannot summarize them back to you.' },
     { title: 'Japanese',            body: 'Could survive outside Tokyo with no phone, but it would not be fun for anyone involved.' },
   ],
 

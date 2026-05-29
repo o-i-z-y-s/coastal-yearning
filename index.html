@@ -8,6 +8,9 @@
   <title>Jordan Fluitt</title>
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+  <link rel="preload" href="./fonts/Montserrat-Bold.woff"   as="font" type="font/woff" crossorigin>
+  <link rel="preload" href="./fonts/Montserrat-SemiBold.woff" as="font" type="font/woff" crossorigin>
+  <link rel="preload" href="./fonts/Montserrat-Medium.woff"   as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="./css/main.css">
 </head>
 <body>
@@ -99,6 +102,14 @@
 
   <!-- Time controls: toggle + clock scrubber, centered as a column -->
   <div id="time-controls">
+    <button id="controls-toggle" title="Time controls" aria-label="Toggle time controls" aria-expanded="false">
+      <svg width="16" height="16" viewBox="0 0 13 13" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+        <line x1="6.5" y1="6.5" x2="6.5" y2="3.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="6.5" y1="6.5" x2="9.2" y2="6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div id="controls-panel">
     <div class="time-toggle">
       <button class="time-btn" data-time="dawn" title="Dawn">
         <img src="./assets/halfsunhalfmoon.png" alt="Dawn" class="img-flip">
@@ -129,6 +140,7 @@
       <div id="scrubber-date"></div>
       <button id="scrubber-restore">Restore</button>
     </div>
+    </div><!-- /#controls-panel -->
   </div>
 
   <!-- Sky hero — full viewport -->

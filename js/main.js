@@ -981,6 +981,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ── Mobile controls toggle ──────────────────────────────────────────────
+  const _controlsToggle = document.getElementById('controls-toggle');
+  if (_controlsToggle) {
+    const _ctc = document.getElementById('time-controls');
+    _controlsToggle.addEventListener('click', () => {
+      const expanded = _ctc ? _ctc.classList.toggle('controls-expanded') : false;
+      _controlsToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    });
+  }
+
   if (DEV) {
     const _DEV_PHASES = [
       { phase: 0,      label: 'New Moon'        },
@@ -1022,12 +1032,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.addEventListener('keydown', e => {
-      if (e.key !== 'm' && e.key !== 'M') return;
-      _devPhaseIdx = (_devPhaseIdx + 1) % _DEV_PHASES.length;
-      const entry  = _DEV_PHASES[_devPhaseIdx];
-      devMoonPhase = entry.phase;
-      placeSunMoon(clockScrubber ? clockScrubber.secs : getSecondsNow());
-      _showPhaseLabel(entry.label);
+      if (e.key === 'm' || e.key === 'M') {
+        _devPhaseIdx = (_devPhaseIdx + 1) % _DEV_PHASES.length;
+        const entry  = _DEV_PHASES[_devPhaseIdx];
+        devMoonPhase = entry.phase;
+        placeSunMoon(clockScrubber ? clockScrubber.secs : getSecondsNow());
+        _showPhaseLabel(entry.label);
+        return;
+      }
+      // [ / ] — step date back/forward one week (syncs scrubber date pill)
+      if (e.key === '[' || e.key === ']') {
+        const cs   = clockScrubber;
+        if (!cs) return;
+        const step = e.key === '[' ? -1 : 1;
+        cs._dateOffset += step;
+        cs._prevSecs    = cs.secs; // prevent false midnight-crossing on next drag
+        window._currentDate = cs._getOffsetDate();
+        cs._updateDatePill();
+        if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
+      }
+      // Escape or 0 — reset date to today
+      if (e.key === 'Escape' || e.key === '0') {
+        const cs = clockScrubber;
+        if (!cs) return;
+        cs._dateOffset  = 0;
+        cs._prevSecs    = cs.secs;
+        window._currentDate = null;
+        cs._updateDatePill();
+        if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
+      }
     });
   }
 });
