@@ -223,6 +223,9 @@ function applyGradients(hours, skyOnly) {
     if (_skyTop !== _lastSkyTop) {
       _lastSkyTop = _skyTop;
       document.documentElement.style.setProperty('--sky-top', _skyTop);
+      // Also set backgroundColor directly — iOS Safari's overscroll compositor
+      // caches the resolved value at paint time and ignores CSS variable updates.
+      document.documentElement.style.backgroundColor = _skyTop;
     }
   }
   window._starVisibility = getStarVisibility(hours, skyB);
