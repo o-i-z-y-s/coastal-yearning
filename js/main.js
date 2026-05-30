@@ -1,5 +1,5 @@
 /**
- * main.js — site logic.
+ * main.js: site logic.
  * Handles: time detection, time-of-day colour themes, sun/moon arc,
  * time toggle, and rendering all content from content.js.
  */
@@ -15,23 +15,21 @@ let _devPhaseIdx = 8;     // starts at the "Real Phase" sentinel
 const THEMES = {
   dawn: {
     pulldown:   '#0c3575',
-    oceanFloor: '#001230',
   },
   day: {
     pulldown:   '#096dd9',
-    oceanFloor: '#001b36',
   },
   dusk: {
     pulldown:   '#312678',
-    oceanFloor: '#00070f',
+  },
+  evening: {
+    pulldown:   '#191947',
   },
   night: {
     pulldown:   '#010b17',
-    oceanFloor: '#000012',
   },
   midnight: {
     pulldown:   '#000810',
-    oceanFloor: '#000008',
   },
 };
 
@@ -66,41 +64,48 @@ const THEME_HOURS = { dawn: 6, day: 12, dusk: 18.5, night: 21, midnight: 0 };
 // Segment tables are computed from real solar times for the display date.
 // Each entry: [hourStart, hourEnd, themeFrom, themeTo]
 
-// Cached astronomical data — rebuilt when the display date changes.
-let _solar   = null; // result of computeSolarTimes()
-let _lunar   = null; // result of computeLunarTimes()
-let _skySegs = null;
-let _ocnSegs = null;
+// Cached astronomical data, rebuilt when the display date changes.
+let _solar = null; // result of computeSolarTimes()
+let _segs  = null; // shared sky + ocean segment timing table
 
 /**
- * Builds a sky/ocean segment table from solar times.
- * Twilight phase widths are physically fixed (atmospheric optics don't
- * vary with season at mid-latitudes); only pure "day" and "night" expand/contract.
- *
- *   astronomical twilight = ±90 min from sunrise/sunset  (sun at ±18°)
- *   nautical twilight     = ±60 min                      (sun at ±12°)
- *   civil twilight        = ±30 min                      (sun at  ±6°)
+ * Twilight, day-onset, and solar-midnight anchors (hours) from solar times.
+ * Astronomical (-18 deg) and nautical (-12 deg) dawn use real sun-elevation
+ * crossings; civil dawn folds into the dawn band while civil dusk (-6 deg) is an
+ * explicit evening anchor. Day onset/offset keep a fixed +/-30 min golden lead.
+ * Falls back to fixed offsets when real twilight times are unavailable.
  */
-function buildSegs({ sunrise, sunset, solarNoon }) {
-  const sr   = sunrise  / 3600;
-  const ss   = sunset   / 3600;
-  // Solar midnight: 12 h from solar noon, normalised to [0, 24)
-  const smid = ((solarNoon / 3600 - 12) + 24) % 24;
+function _anchors(s) {
+  const sr = s.sunrise / 3600, ss = s.sunset / 3600;
+  const real = (v, fb) => (typeof v === 'number') ? v / 3600 : fb;
+  return {
+    sr, ss,
+    smid:      ((s.solarNoon / 3600 - 12) + 24) % 24,
+    astroDawn: real(s.astronomicalDawn, sr - 1.5),
+    nautDawn:  real(s.nauticalDawn,     sr - 1.0),
+    dayStart:  sr + 0.5,
+    dayEnd:    ss - 0.5,
+    civilDusk: real(s.civilDusk,        ss + 0.5),
+    nautDusk:  real(s.nauticalDusk,     ss + 1.0),
+    astroDusk: real(s.astronomicalDusk, ss + 1.5),
+  };
+}
 
-  // Morning twilight anchors
-  const astroDawn = sr - 1.5;
-  const nautDawn  = sr - 1.0;
-  const dayStart  = sr + 0.5;  // civil twilight ends ~30 min after sunrise
-
-  // Evening twilight anchors
-  const dayEnd    = ss - 0.5;
-  const civilDusk = ss + 0.5;
-  const nautDusk  = ss + 1.0;
-  const astroDusk = ss + 1.5;
+/**
+ * Builds a sky/ocean segment table from real twilight times for the date.
+ * Astronomical, nautical, and civil twilight band edges come from actual
+ * sun-elevation crossings, so their widths shift through the year; pure "day"
+ * and "night" expand and contract between them.
+ */
+function buildSegs(s) {
+  const a = _anchors(s);
+  const sr = a.sr, ss = a.ss, smid = a.smid;
+  const astroDawn = a.astroDawn, nautDawn = a.nautDawn, dayStart = a.dayStart;
+  const dayEnd = a.dayEnd, civilDusk = a.civilDusk, nautDusk = a.nautDusk, astroDusk = a.astroDusk;
 
   // Midnight window: ±1.5 h around solar midnight, straddles the 0/24 boundary.
-  // At 35 °N / 120 °W solar midnight ≈ 00:00–01:00, so midA ≈ 22.5–23.5 h
-  // and midB ≈ 1.5–2.5 h — always well inside [0, 24).
+  // At 35 °N / 120 °W solar midnight ≈ 00:00 to 01:00, so midA ≈ 22.5 to 23.5 h
+  // and midB ≈ 1.5 to 2.5 h, always well inside [0, 24).
   const midA = (smid - 1.5 + 24) % 24; // where night → midnight begins
   const midB = (smid + 1.5)      % 24; // where midnight → night ends
 
@@ -131,16 +136,13 @@ function _refreshSolarTimes() {
 
   try {
     _solar = computeSolarTimes(date, 35.0, -120.0); // coastal California
-    _lunar = computeLunarTimes(date, 35.0, -120.0);
   } catch (e) {
     // If astronomy.js failed to load or threw, fall back to equinox values at 35°N
     // so applyGradients can still set --sky-top and the CSS gradient still works.
     _solar = { sunrise: 23400, sunset: 72000, solarNoon: 46800, sunElevNoon: 55 };
-    _lunar = { neverUp: true, moonTransitAlt: 0, moonTransitTime: 0 };
   }
   _solar._dateKey = dateKey;
-  _skySegs = buildSegs(_solar);
-  _ocnSegs = buildSegs(_solar);
+  _segs = buildSegs(_solar);
 }
 
 /**
@@ -155,8 +157,8 @@ function getBlend(hours, segs) {
   return { from: 'night', to: 'night', t: 0 };
 }
 
-function getSkyBlend(hours)   { _refreshSolarTimes(); return getBlend(hours, _skySegs); }
-function getOceanBlend(hours) { _refreshSolarTimes(); return getBlend(hours, _ocnSegs); }
+function getSkyBlend(hours)   { _refreshSolarTimes(); return getBlend(hours, _segs); }
+function getOceanBlend(hours) { _refreshSolarTimes(); return getBlend(hours, _segs); }
 
 
 /**
@@ -251,10 +253,11 @@ let _lastWaveColor  = '';
 let _lastOceanGrad  = '';
 let _lastFooterColor = '';
 let _lastSkyTop      = '';
+let _lastOceanFloor  = '';
 
 /**
  * Apply gradient outputs for the given hour.
- * skyOnly = true: update only sky, surface haze, and wave fill — used during
+ * skyOnly = true: update only sky, surface haze, and wave fill, used during
  * active scrubbing when the ocean section is below the fold and invisible.
  * A full update is fired on pointer release.
  */
@@ -262,7 +265,7 @@ function applyGradients(hours, skyOnly) {
   const skyB   = getSkyBlend(hours);
   const oceanB = getOceanBlend(hours);
   paintSkyGradient(hours, skyB);
-  // Exact topmost-pixel colour of the sky canvas — used as the html overscroll background
+  // Exact topmost-pixel colour of the sky canvas, used as the html overscroll background
   {
     const { from: _f, to: _t, t: _bt } = skyB;
     const _sa = SKY_STOPS[_f], _sb = SKY_STOPS[_t];
@@ -273,6 +276,12 @@ function applyGradients(hours, skyOnly) {
       document.documentElement.style.setProperty('--sky-top', _skyTop);
       _setThemeColor(_skyTop);
     }
+  }
+  // Exact deepest ocean stop: html overscroll background bottom (matches the footer).
+  const _oceanFloor = getOceanStop(hours, 3, oceanB);
+  if (_oceanFloor !== _lastOceanFloor) {
+    _lastOceanFloor = _oceanFloor;
+    document.documentElement.style.setProperty('--ocean-floor', _oceanFloor);
   }
   window._starVisibility = getStarVisibility(hours, skyB);
   const surfGrad = buildSurfaceGradient(hours, skyB);
@@ -294,10 +303,9 @@ function applyGradients(hours, skyOnly) {
       _lastOceanGrad = oceanGrad;
       if (_el.ocean) _el.ocean.style.background = oceanGrad;
     }
-    const footerColor = getOceanStop(hours, 3, oceanB);
-    if (footerColor !== _lastFooterColor) {
-      _lastFooterColor = footerColor;
-      if (_el.footer) _el.footer.style.backgroundColor = footerColor;
+    if (_oceanFloor !== _lastFooterColor) {
+      _lastFooterColor = _oceanFloor;
+      if (_el.footer) _el.footer.style.backgroundColor = _oceanFloor;
     }
     document.documentElement.style.setProperty('--sand-opacity', getSandOpacity(hours, oceanB));
   }
@@ -307,18 +315,16 @@ function applyGradients(hours, skyOnly) {
 
 function getTimeOfDayFromHour(h) {
   _refreshSolarTimes();
-  const sr   = _solar.sunrise  / 3600;
-  const ss   = _solar.sunset   / 3600;
-  const smid = ((_solar.solarNoon / 3600 - 12) + 24) % 24;
-  const n    = ((h % 24) + 24) % 24;
+  const a = _anchors(_solar);
+  const n = ((h % 24) + 24) % 24;
   // Solar midnight window (wraps around 0/24)
-  let md = Math.abs(n - smid);
+  let md = Math.abs(n - a.smid);
   if (md > 12) md = 24 - md;
-  if (md < 1.5)                         return 'midnight';
-  if (n >= sr - 1.0 && n < sr + 0.5)   return 'dawn';
-  if (n >= sr + 0.5 && n < ss - 0.5)   return 'day';
-  if (n >= ss - 0.5 && n < ss + 1.0)   return 'dusk';
-  if (n >= ss + 1.0 && n < ss + 1.5)   return 'evening';
+  if (md < 1.5)                            return 'midnight';
+  if (n >= a.nautDawn && n < a.dayStart)   return 'dawn';
+  if (n >= a.dayStart && n < a.dayEnd)     return 'day';
+  if (n >= a.dayEnd   && n < a.nautDusk)   return 'dusk';
+  if (n >= a.nautDusk && n < a.astroDusk)  return 'evening';
   return 'night';
 }
 
@@ -334,13 +340,13 @@ function getSecondsNow() {
 
 /** Seconds-since-midnight used when a toggle button is pressed. */
 const TOGGLE_TIMES = {
-  dawn:    21600,   // 06:00 — pure dawn sky
-  morning: 43200,   // 12:00 — noon, sun at apex
-  evening: 64800,   // 18:00 — 6 pm, dusk
-  night:       0,   // 00:00 — midnight, moon at apex
+  dawn:    21600,   // 06:00, pure dawn sky
+  morning: 43200,   // 12:00, noon, sun at apex
+  evening: 64800,   // 18:00, 6 pm, dusk
+  night:       0,   // 00:00, midnight, moon at apex
 };
 
-// true while the user has manually selected a theme — auto-updates are suppressed.
+// true while the user has manually selected a theme; auto-updates are suppressed.
 let manualOverride = false;
 
 // Holds the ClockScrubber instance so intervals can check its active state.
@@ -464,7 +470,6 @@ function applyTheme(themeKey, skyHours) {
   const th  = THEMES[themeKey];
   const hrs = skyHours !== undefined ? skyHours : THEME_HOURS[themeKey];
   document.documentElement.style.setProperty('--pulldown',    th.pulldown);
-  document.documentElement.style.setProperty('--ocean-floor', th.oceanFloor);
   _setFavicon(hrs);
   applyGradients(hrs);  // applyGradients handles --sand-opacity and theme-color
 }
@@ -505,9 +510,9 @@ const _ANOMALISTIC_MS = 27.55455     * 24 * 60 * 60 * 1000;
 const _REF_NEW_MOON   = Date.UTC(2000, 0, 6, 18, 14, 0);      // same anchor as getMoonPhase
 const _REF_PERIGEE    = Date.UTC(2016, 10, 14, 11, 22, 0);     // Nov 14 2016 supermoon perigee
 
-// Total lunar eclipse totality windows — [greatest_eclipse_UTC_ms, half_totality_ms]
+// Total lunar eclipse totality windows: [greatest_eclipse_UTC_ms, half_totality_ms]
 // Source: NASA Five Millennium Catalog of Lunar Eclipses (Espenak & Meeus, GSFC)
-// Coverage: 2001–2050. Blood Moon pill shows only during actual totality.
+// Coverage: 2001 to 2050. Blood Moon pill shows only during actual totality.
 const _BLOOD_MOON_WINDOWS = [
   [Date.UTC(2001,  0,  9, 20, 21, 40),  61.0 / 2 * 60000], // 2001 Jan 09
   [Date.UTC(2003,  4, 16,  3, 41, 13),  51.4 / 2 * 60000], // 2003 May 16
@@ -562,7 +567,7 @@ const _NAMED_FULL_MOONS = [
   "Hunter's Moon", 'Beaver Moon', 'Cold Moon',
 ];
 
-/** Approximate date of the autumnal equinox (Jean Meeus, ±1–2 days). */
+/** Approximate date of the autumnal equinox (Jean Meeus, ±1 to 2 days). */
 function _autumnalEquinoxDate(year) {
   const k   = (year - 2000) / 1000.0;
   const jde = 2451810.21715 + 365242.01767 * k
@@ -582,7 +587,7 @@ function _nearestFullMoon(date) {
 
 /**
  * Returns the hover pill label for the moon.
- * phase — current lunar phase [0, 1); date — display date for calendar lookups.
+ * phase: current lunar phase [0, 1); date: display date for calendar lookups.
  * Full moons with multiple applicable titles are joined with ' · '.
  */
 function getMoonLabel(phase, date) {
@@ -599,26 +604,26 @@ function getMoonLabel(phase, date) {
 
   if (baseName !== 'Full Moon') return baseName;
 
-  // ── Full moon — collect titles in display-priority order ────────────────
+  // ── Full moon: collect titles in display-priority order ────────────────
   // Tier 1: recognised special names  (Blue Moon, Blood Moon)
   // Tier 2: month-tied names           (Harvest / Hunter's / named moon)
   // Tier 3: orbital descriptors        (Supermoon / Micromoon)
   const titles = [];
   const fm     = _nearestFullMoon(date); // precise full moon date
 
-  // Tier 1a — Blue Moon (second full moon in the same calendar month)
+  // Tier 1a: Blue Moon (second full moon in the same calendar month)
   const prevFM = new Date(fm.getTime() - _SYNODIC_MS);
   if (prevFM.getMonth() === fm.getMonth() && prevFM.getFullYear() === fm.getFullYear()) {
     titles.push('Blue Moon');
   }
 
-  // Tier 1b — Blood Moon (within totality window of a total lunar eclipse)
+  // Tier 1b: Blood Moon (within totality window of a total lunar eclipse)
   const _bmMs = date.getTime();
   for (const [_greatest, _halfTotal] of _BLOOD_MOON_WINDOWS) {
     if (Math.abs(_bmMs - _greatest) <= _halfTotal) { titles.push('Blood Moon'); break; }
   }
 
-  // Tier 2 — month-tied name (Harvest Moon, Hunter's Moon, or standard named moon)
+  // Tier 2: month-tied name (Harvest Moon, Hunter's Moon, or standard named moon)
   const harvest     = _nearestFullMoon(_autumnalEquinoxDate(fm.getFullYear()));
   const harvestDiff = Math.abs(fm.getTime() - harvest.getTime());
   const hunter      = new Date(harvest.getTime() + _SYNODIC_MS);
@@ -628,7 +633,7 @@ function getMoonLabel(phase, date) {
   else if (hunterDiff  < _SYNODIC_MS * 0.1)  titles.push("Hunter's Moon");
   else                                         titles.push(_NAMED_FULL_MOONS[fm.getMonth()]);
 
-  // Tier 3 — orbital descriptor (Supermoon / Micromoon)
+  // Tier 3: orbital descriptor (Supermoon / Micromoon)
   const anomElapsed = date.getTime() - _REF_PERIGEE;
   const anomPhase   = ((anomElapsed % _ANOMALISTIC_MS) + _ANOMALISTIC_MS) % _ANOMALISTIC_MS / _ANOMALISTIC_MS;
   if      (anomPhase < 0.12 || anomPhase > 0.88) titles.push('Supermoon');
@@ -662,7 +667,7 @@ function drawMoonPhase(canvas, phase) {
   const tx       = Math.abs(termX);
   const litColor = 'rgba(218, 228, 242, 0.94)';
 
-  ctx.save();                              // save A — lit area clip
+  ctx.save();                              // save A: lit area clip
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
@@ -679,7 +684,7 @@ function drawMoonPhase(canvas, phase) {
   ctx.closePath();
   ctx.fill();
 
-  // Soft inner glow — already clipped to moon disc by save A.
+  // Soft inner glow, already clipped to moon disc by save A.
   const glow = ctx.createRadialGradient(cx, cy, r * 0.35, cx, cy, r);
   glow.addColorStop(0, `rgba(190, 210, 240, ${(illum * 0.28).toFixed(3)})`);
   glow.addColorStop(1, 'rgba(190, 210, 240, 0)');
@@ -723,7 +728,7 @@ function placeSunMoon(secondsSinceMidnight) {
   const X_RISE = -12, X_SET = 112;
   const arcX = t => X_RISE + (X_SET - X_RISE) * t;
 
-  // Sun arc — peak height from actual solar elevation at noon.
+  // Sun arc: peak height from actual solar elevation at noon.
   // At equinox (55° at 35°N) → PEAK_Y ≈ 9% = old hardcoded default.
   const sunPeakY = HORIZON_Y * (1 - _solar.sunElevNoon / 90);
   const sunArcH  = HORIZON_Y - sunPeakY;
@@ -734,12 +739,12 @@ function placeSunMoon(secondsSinceMidnight) {
   const moonOccluder = _el.moonOccluder;
   if (!sun || !moonCanvas) return;
 
-  // Moon opacity — full at night, washed-out disc during daylight (Chunk 3).
+  // Moon opacity: full at night, washed-out disc during daylight (Chunk 3).
   const _moonOpacity = Math.max(0.15,
     typeof window._starVisibility === 'number' ? window._starVisibility : 1.0
   ).toFixed(3);
 
-  // Occluder blocks stars behind the moon's dark side — only needed when stars
+  // Occluder blocks stars behind the moon's dark side, only needed when stars
   // are actually visible.  During daylight _starVisibility → 0 so the occluder
   // fades to invisible, leaving just the lit crescent against the blue sky.
   const _occluderOpacity = (typeof window._starVisibility === 'number'
@@ -782,65 +787,26 @@ function placeSunMoon(secondsSinceMidnight) {
     sun.style.setProperty('--sun-vis', 'hidden');
   }
 
-  // ── Moon: visible whenever above the horizon (real lunar arc) ─────────────
-  // Moon and sun can overlap — opacity handles the daytime wash-out.
-  if (!_lunar || _lunar.neverUp) { _hideMoon(); return; }
+  // ── Moon: real instantaneous arc, continuous across date boundaries ───────
+  // Position comes from the moon's hour angle (like the planets), so scrubbing
+  // past midnight no longer snaps. Opacity handles the daytime wash-out.
+  const _moonBase    = (window._currentDate instanceof Date) ? window._currentDate : new Date();
+  const _moonInstant = new Date(_moonBase.getFullYear(), _moonBase.getMonth(), _moonBase.getDate());
+  _moonInstant.setSeconds(secs);
 
-  // Moon arc geometry — peak height from actual transit altitude.
-  const moonPeakY = HORIZON_Y * (1 - _lunar.moonTransitAlt / 90);
+  let _moon = null;
+  if (typeof computeMoonState === 'function') {
+    try { _moon = computeMoonState(_moonInstant, 35.0, -120.0); } catch (e) { _moon = null; }
+  }
+  if (!_moon || !_moon.up) { _hideMoon(); return; }
+
+  // Hour-angle arc: 0 at rise (left/east), 0.5 at transit, 1 at set (right/west).
+  const _mt = Math.max(0, Math.min(1,
+    (_moon.hourAngle + _moon.riseSetHA) / (2 * _moon.riseSetHA)));
+  const moonPeakY = HORIZON_Y * (1 - _moon.transitAlt / 90);
   const moonArcH  = HORIZON_Y - moonPeakY;
-  const moonArcY  = t => HORIZON_Y - moonArcH * Math.sin(Math.PI * t);
-
-  if (_lunar.alwaysUp) {
-    // Rare at 35°N — use transit time as arc anchor, 12h half-arc assumed.
-    const HALF = 12 * 3600;
-    const el   = ((secs - _lunar.moonTransitTime) % 86400 + 86400) % 86400;
-    const moonT = el / (2 * HALF);
-    _showMoon(arcX(moonT) + '%', moonArcY(moonT) + '%', getMoonPhase());
-    return;
-  }
-
-  // Normal case: determine effective rise/set (extrapolate missing end from transit).
-  const mr = _lunar.moonrise;
-  const ms = _lunar.moonset;
-  const transT = _lunar.moonTransitTime;
-
-  let mr_eff, ms_eff;
-  if (mr !== null && ms !== null) {
-    mr_eff = mr; ms_eff = ms;
-  } else if (mr !== null) {
-    // Moon rises today but doesn't set before midnight — extrapolate set.
-    mr_eff = mr;
-    ms_eff = transT + (transT - mr); // symmetric around transit
-  } else if (ms !== null) {
-    // Moon was already up at midnight, sets today — extrapolate rise.
-    ms_eff = ms;
-    mr_eff = transT - (ms - transT); // symmetric around transit
-  } else {
-    _hideMoon(); return; // shouldn't reach here given alwaysUp/neverUp checks
-  }
-
-  // Arc duration, accounting for a midnight crossing (ms_eff may wrap < mr_eff).
-  const arcDur = ms_eff > mr_eff
-    ? ms_eff - mr_eff
-    : ms_eff + 86400 - mr_eff;
-
-  // Seconds elapsed since moon rose — handles midnight wrap.
-  let elapsed;
-  if (ms_eff > mr_eff) {
-    elapsed = (secs >= mr_eff && secs <= ms_eff) ? secs - mr_eff : -1;
-  } else {
-    // Moon spans midnight (rises in evening, sets in morning)
-    if      (secs >= mr_eff) elapsed = secs - mr_eff;
-    else if (secs <= ms_eff) elapsed = secs + 86400 - mr_eff;
-    else                     elapsed = -1;
-  }
-
-  if (elapsed >= 0 && elapsed <= arcDur) {
-    _showMoon(arcX(elapsed / arcDur) + '%', moonArcY(elapsed / arcDur) + '%', getMoonPhase());
-  } else {
-    _hideMoon();
-  }
+  const moonArcY  = HORIZON_Y - moonArcH * Math.sin(Math.PI * _mt);
+  _showMoon(arcX(_mt) + '%', moonArcY + '%', getMoonPhase());
 }
 
 // ── URL sanitiser ────────────────────────────────────────────────────────────
@@ -971,7 +937,7 @@ class ClockScrubber {
     // Scale canvas buffer for device pixel ratio so it stays crisp on retina/mobile
     const _dpr = window.devicePixelRatio || 1;
     this._dpr  = _dpr;
-    const W    = this.canvas.width;  // logical width (140) — read before we overwrite it
+    const W    = this.canvas.width;  // logical width (140), read before we overwrite it
     this._logW = W;
     this.canvas.width  = W * _dpr;
     this.canvas.height = W * _dpr;
@@ -1050,7 +1016,7 @@ class ClockScrubber {
     const _r  = this.canvas.getBoundingClientRect();
     const _cx = _r.left + _r.width  / 2;
     const _cy = _r.top  + _r.height / 2;
-    // Only activate if the touch is within the clock circle — prevents
+    // Only activate if the touch is within the clock circle; prevents
     // touches on the nearby moon (same screen area) from hijacking the scrubber.
     if (Math.hypot(e.clientX - _cx, e.clientY - _cy) > _r.width / 2) return;
     this.active        = true;
@@ -1108,7 +1074,6 @@ class ClockScrubber {
       currentOceanTheme = theme;
       const th = THEMES[theme];
       document.documentElement.style.setProperty('--pulldown',    th.pulldown);
-      document.documentElement.style.setProperty('--ocean-floor', th.oceanFloor);
       _setFavicon(hours);
     }
 
@@ -1162,7 +1127,7 @@ class ClockScrubber {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Minor ticks — one batched path instead of 20 individual strokes
+    // Minor ticks: one batched path instead of 20 individual strokes
     ctx.beginPath();
     ctx.strokeStyle = 'rgba(255,255,255,0.18)';
     ctx.lineWidth   = 1;
@@ -1244,9 +1209,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const _bootSecs  = getSecondsNow();
   const _bootTheme = THEMES[currentOceanTheme];
   document.documentElement.style.setProperty('--pulldown',    _bootTheme.pulldown);
-  document.documentElement.style.setProperty('--ocean-floor', _bootTheme.oceanFloor);
   _setFavicon(_bootSecs / 3600);
-  // Lock sky height to the initial viewport — prevents iOS nav-bar resize from reflowing the sky.
+  // Lock sky height to the initial viewport; prevents iOS nav-bar resize from reflowing the sky.
   document.documentElement.style.setProperty('--sky-h', window.innerHeight + 'px');
   _resizeGradientCanvas();           // sizes canvas before first paint
   applyGradients(_bootSecs / 3600);  // single paint on a correctly-sized canvas
@@ -1266,7 +1230,6 @@ document.addEventListener('DOMContentLoaded', () => {
       currentOceanTheme = themeKey;
       const t = THEMES[themeKey];
       document.documentElement.style.setProperty('--pulldown',    t.pulldown);
-      document.documentElement.style.setProperty('--ocean-floor', t.oceanFloor);
       _setFavicon(hours);
     }
   }, 60000);
@@ -1286,7 +1249,7 @@ document.addEventListener('DOMContentLoaded', () => {
     _resizeGradientCanvas();
     // Only call placeSunMoon when an override is active (preserves scrubbed position
     // when iOS nav bars hide/show and trigger spurious resize events).
-    // In real-time mode the 1-second interval handles sun/moon — calling it here
+    // In real-time mode the 1-second interval handles sun/moon; calling it here
     // would update window._currentSecs on every scroll, causing the planet renderer
     // to redraw on every iOS browser-chrome resize = constant flickering.
     const _override = manualOverride || (clockScrubber && clockScrubber._overriding);
@@ -1387,7 +1350,7 @@ document.addEventListener('DOMContentLoaded', () => {
         _showPhaseLabel(entry.label);
         return;
       }
-      // [ / ] — step date back/forward one week (syncs scrubber date pill)
+      // [ / ]: step date back/forward one day (syncs scrubber date pill)
       if (e.key === '[' || e.key === ']') {
         const cs   = clockScrubber;
         if (!cs) return;
@@ -1401,7 +1364,7 @@ document.addEventListener('DOMContentLoaded', () => {
         placeSunMoon(cs.secs);
         if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
       }
-      // Escape or 0 — reset date to today
+      // Escape or 0: reset date to today
       if (e.key === 'Escape' || e.key === '0') {
         const cs = clockScrubber;
         if (!cs) return;
@@ -1449,19 +1412,19 @@ document.addEventListener('DOMContentLoaded', () => {
       const mr = _moonEl.getBoundingClientRect();
       const pw = _moonPill.offsetWidth  || 120;
       const ph = _moonPill.offsetHeight || 22;
-      // 5 px outside the moon disc edge (disc radius = canvas/2 - 6 = 29 px).
+      // 12 px outside the moon disc edge (disc radius = canvas/2 - 6 = 29 px).
       // Pill sits below the moon so it doesn't crowd the top of the screen.
       const _mr = 29;
       const cx  = mr.left - hr.left + mr.width  / 2;
       const cy  = mr.top  - hr.top  + mr.height / 2;
       const px  = Math.max(8, Math.min(cx - pw / 2, hr.width  - pw - 8));
-      const py  = Math.max(8, Math.min(cy + _mr + 5, hr.height - ph - 8));
+      const py  = Math.max(8, Math.min(cy + _mr + 12, hr.height - ph - 8));
       _moonPill.style.left    = px + 'px';
       _moonPill.style.top     = py + 'px';
       _moonPill.style.opacity = '1';
     };
 
-    // pointer-events: none is on the canvas — use pointer proximity on the
+    // pointer-events: none is on the canvas; use pointer proximity on the
     // sky hero instead of mouseenter/mouseleave.  pointerdown handles taps
     // on mobile (where pointermove never fires for a stationary touch).
     let _moonPillShown = false;
@@ -1490,14 +1453,14 @@ document.addEventListener('DOMContentLoaded', () => {
       // Show pill on touch-near-moon; hide if touch elsewhere (both desktop + mobile).
       _checkMoonProximity(e.clientX, e.clientY);
     });
-    // pointerleave fires on touch-end on mobile — only hide for non-touch.
+    // pointerleave fires on touch-end on mobile, so only hide for non-touch.
     _skyHero.addEventListener('pointerleave', e => {
       if (e.pointerType === 'touch') return;
       _moonPillShown = false;
       _moonPill.style.opacity = '0';
     });
 
-    // Dismiss when touching anything outside the moon — including the clock
+    // Dismiss when touching anything outside the moon, including the clock
     // scrubber, which lives outside #sky-hero and fires no sky-hero event.
     document.addEventListener('pointerdown', e => {
       if (!_moonPillShown) return;

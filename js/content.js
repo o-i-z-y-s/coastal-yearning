@@ -1,5 +1,5 @@
 /**
- * content.js — everything visible on the site lives here.
+ * content.js: everything visible on the site lives here.
  * Edit this file to update the page. No framework knowledge needed.
  */
 
@@ -7,7 +7,7 @@ window.CONTENT = {
 
   // ── Hero ────────────────────────────────────────────────────────────────────
   name:    'Jordan Fluitt',
-  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astonomy nerd. Dog lover. Used em-dashes long before AI did.',
+  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astronomy nerd. Dog lover. Used em-dashes long before AI did.',
 
   links: [
     { href: 'https://github.com/o-i-z-y-s',                   img: './assets/github.png',   label: 'GitHub'   },
@@ -15,10 +15,10 @@ window.CONTENT = {
     { href: 'mailto:jordanf.tpm@gmail.com',                   img: './assets/letter.svg',   label: 'Email'    },
   ],
 
-  // ── Ocean — short bio ─────────────────────────────────────────────────────────
+  // ── Ocean: short bio ─────────────────────────────────────────────────────────
   bio: 'I lead R&D initiatives and the engineers that build them. <a href="https://www.caci.com/space" target="_blank" rel="noopener noreferrer">We put things in space.</a>',
 
-  // ── Ocean — status cards ──────────────────────────────────────────────────────
+  // ── Ocean: status cards ──────────────────────────────────────────────────────
   statusCards: [
     {
       label: 'Currently',
@@ -47,7 +47,7 @@ window.CONTENT = {
     },
   ],
 
-  // ── Ocean — projects ──────────────────────────────────────────────────────────
+  // ── Ocean: projects ──────────────────────────────────────────────────────────
   projects: [
     {
       title: 'hoverleser',
@@ -61,7 +61,7 @@ window.CONTENT = {
     },
   ],
 
-  // ── Ocean — also (small cards — edit title and body freely) ─────────────────
+  // ── Ocean: also (small cards, edit title and body freely) ─────────────────
   also: [
     { title: 'Linguistics',         body: 'UC Santa Barbara. Studied abroad in Tokyo. This actually came in handy building hoverleser.' },
     { title: 'Localization',        body: 'Untangle Japanese works in translation when new volumes drop. I\'ve done over 50! And a game!' },

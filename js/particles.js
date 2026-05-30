@@ -1,7 +1,7 @@
 /**
- * particles.js — custom replacement for the particles.js npm package.
- * SkyParticles    — twinkling stars on the sky canvas (capped at 24fps)
- * BubbleParticles — rising circles through the ocean canvas (capped at 20fps)
+ * particles.js: custom replacement for the particles.js npm package.
+ * SkyParticles    - twinkling stars on the sky canvas (capped at 24fps)
+ * BubbleParticles - rising circles through the ocean canvas (capped at 20fps)
  *
  * Both systems skip drawing while window._scrubbing is true (clock drag active).
  * Star count scales with window._starVisibility (0=day, 1=midnight) set by main.js.
@@ -46,7 +46,7 @@ class SkyParticles {
   _init() {
     const colors = Object.keys(STAR_RGB);
     const area   = window.innerWidth * window.innerHeight;
-    // Generous pool — invisible stars cost nothing (skipped in _tick)
+    // Generous pool: invisible stars cost nothing (skipped in _tick)
     const count  = Math.max(100, Math.min(Math.round(area / 5000), 400));
     for (let i = 0; i < count; i++) {
       const color = colors[Math.floor(Math.random() * colors.length)];
@@ -69,7 +69,7 @@ class SkyParticles {
   _tick(ts) {
     this._raf = requestAnimationFrame(this._boundTick);
 
-    // ~24fps cap — stars move so slowly that lower fps is imperceptible
+    // ~24fps cap - stars move so slowly that lower fps is imperceptible
     if (ts - this._lastFrame < 42) return;
     this._lastFrame = ts;
 

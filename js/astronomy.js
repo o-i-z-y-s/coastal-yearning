@@ -1,19 +1,19 @@
 /**
- * astronomy.js — Pure astronomical calculations. No DOM access.
+ * astronomy.js: Pure astronomical calculations. No DOM access.
  * Must be loaded before main.js.
  *
  * Exports (global):
  *   computeSolarTimes(date, latDeg, lonDeg)
- *     → { sunrise, sunset, solarNoon, sunElevNoon [, polarDay | polarNight] }
+ *     → { sunrise, sunset, solarNoon, sunElevNoon, twilight times [, polarDay | polarNight] }
  *
- *   computeLunarTimes(date, latDeg, lonDeg)
- *     → { moonrise, moonset, moonTransitAlt, moonTransitTime, alwaysUp, neverUp }
+ *   computeMoonState(date, latDeg, lonDeg)
+ *     → { up, hourAngle, riseSetHA, transitAlt }
  *
  * All times are seconds since local midnight (local clock, DST-aware).
  * Angles are degrees unless noted.
  *
- * Solar algorithm : Spencer (1971) — accurate to ≈ 1–2 min below 60° lat.
- * Lunar algorithm : Meeus Ch. 47 truncated — accurate to ≈ 1° / a few minutes.
+ * Solar algorithm : Spencer (1971), accurate to ≈ 1 to 2 min below 60° lat.
+ * Lunar algorithm : Meeus Ch. 47 truncated, accurate to ≈ 1° / a few minutes.
  *                   Sufficient for visual effects.
  */
 
@@ -41,21 +41,21 @@ function _jd(date) {
  */
 function computeSolarTimes(date, latDeg, lonDeg) {
 
-  // Day of year (1–366)
+  // Day of year (1 to 366)
   const jan1      = new Date(date.getFullYear(), 0, 1);
   const dayOfYear = Math.round((date - jan1) / 86400000) + 1;
 
   // Fractional year (radians)
   const B = D2R * (360 / 365) * (dayOfYear - 1);
 
-  // Solar declination (radians) — Spencer 1971
+  // Solar declination (radians), per Spencer 1971
   const decl =
     0.006918
     - 0.399912 * Math.cos(B)     + 0.070257 * Math.sin(B)
     - 0.006758 * Math.cos(2 * B) + 0.000907 * Math.sin(2 * B)
     - 0.002697 * Math.cos(3 * B) + 0.001480 * Math.sin(3 * B);
 
-  // Equation of time (minutes) — Spencer 1971
+  // Equation of time (minutes), per Spencer 1971
   const eqtMin =
     229.18 * (
         0.000075
@@ -83,11 +83,28 @@ function computeSolarTimes(date, latDeg, lonDeg) {
 
   const halfDayHrs = Math.acos(cosH0) * R2D / 15;
 
+  // Hours from solar noon until the sun reaches a given elevation
+  // (degrees, negative = below horizon). null if it never reaches that elevation today.
+  const halfArcTo = elevDeg => {
+    const cosH = (Math.sin(elevDeg * D2R) - Math.sin(latR) * Math.sin(decl)) /
+                 (Math.cos(latR) * Math.cos(decl));
+    return (cosH < -1 || cosH > 1) ? null : Math.acos(cosH) * R2D / 15;
+  };
+  const civilH = halfArcTo(-6), nautH = halfArcTo(-12), astroH = halfArcTo(-18);
+  const at = (hrs, sign) => hrs == null ? null : (solarNoonHrs + sign * hrs) * 3600;
+
   return {
     sunrise:    (solarNoonHrs - halfDayHrs) * 3600,
     sunset:     (solarNoonHrs + halfDayHrs) * 3600,
     solarNoon:  solarNoonHrs * 3600,
     sunElevNoon,
+    // Real twilight crossings consumed by the segment table. Civil dawn folds into
+    // the dawn band, so only the anchors actually used are returned.
+    astronomicalDawn: at(astroH, -1),
+    nauticalDawn:     at(nautH,  -1),
+    civilDusk:        at(civilH, +1),
+    nauticalDusk:     at(nautH,  +1),
+    astronomicalDusk: at(astroH, +1),
   };
 }
 
@@ -163,91 +180,38 @@ function _moonEquatorial(jd) {
 }
 
 /**
- * Moon's altitude above the horizon in degrees at a given Julian Day and location.
- * Negative = below horizon.
+ * Instantaneous moon position for a given instant and observer. Continuous across
+ * day boundaries (unlike per-day rise/set tables), so it drives a smooth arc.
+ * Returns:
+ *   up         - true when the moon is above the horizon
+ *   hourAngle  - local hour angle in degrees, in [-180, 180): negative before
+ *                transit (eastern sky), 0 at transit, positive after (western sky)
+ *   riseSetHA  - |hour angle| at the horizon for the moon's declination (degrees)
+ *   transitAlt - altitude at upper culmination (degrees); the arc's peak height
  */
-function _moonAltDeg(jd, latDeg, lonDeg) {
+function computeMoonState(date, latDeg, lonDeg) {
+  const jd = _jd(date);
   const { ra, dec } = _moonEquatorial(jd);
 
-  // Greenwich Mean Sidereal Time (degrees)
+  // Greenwich and local sidereal time (degrees), then hour angle in [-180, 180).
   const gmst = ((280.46061837 + 360.98564736629 * (jd - 2451545.0)) % 360 + 360) % 360;
-  // Local Sidereal Time (degrees)
   const lst  = ((gmst + lonDeg) % 360 + 360) % 360;
-  // Hour angle (radians)
-  const ha   = (lst - ra) * D2R;
+  const ha   = ((lst - ra) % 360 + 540) % 360 - 180;
 
-  const latR = latDeg * D2R;
-  const decR = dec    * D2R;
+  const latR = latDeg * D2R, decR = dec * D2R;
+  const cosH0 = -Math.tan(latR) * Math.tan(decR);
+  const transitAlt = Math.max(0, 90 - Math.abs(latDeg - dec)); // upper culmination
 
-  const sinAlt = Math.sin(latR)*Math.sin(decR) + Math.cos(latR)*Math.cos(decR)*Math.cos(ha);
-  return Math.asin(Math.max(-1, Math.min(1, sinAlt))) * R2D;
-}
+  if (cosH0 <= -1) return { up: true,  hourAngle: ha, riseSetHA: 180, transitAlt };  // circumpolar
+  if (cosH0 >=  1) return { up: false, hourAngle: ha, riseSetHA: 0,   transitAlt: 0 }; // never up
 
-/**
- * Finds moonrise, moonset, and peak altitude for a given date and observer.
- *
- * Uses a 30-minute step-sampler over the 24-hour local day, then linearly
- * interpolates to the exact horizon-crossing time.  Accuracy ≈ 1–3 minutes.
- *
- * Returns:
- *   moonrise      — seconds since local midnight, or null (didn't rise today)
- *   moonset       — seconds since local midnight, or null (didn't set today)
- *   moonTransitAlt — peak altitude in degrees during the day
- *   moonTransitTime — seconds at which peak altitude occurs
- *   alwaysUp      — true if moon never dips below the horizon
- *   neverUp       — true if moon never rises above the horizon
- */
-function computeLunarTimes(date, latDeg, lonDeg) {
-  const STEP  = 1800;  // 30-minute step in seconds
-  const STEPS = 48;    // 48 steps × 30 min = 24 h
-
-  // JD at local midnight
-  const midnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const jd0      = _jd(midnight);
-
-  // Sample altitude at every half-hour mark
-  const alts = [];
-  for (let i = 0; i <= STEPS; i++) {
-    const t = i * STEP;
-    alts.push({ t, alt: _moonAltDeg(jd0 + t / 86400, latDeg, lonDeg) });
-  }
-
-  let moonrise = null, moonset = null;
-  let peakAlt  = alts[0].alt;
-  let peakT    = alts[0].t;
-
-  for (let i = 0; i < STEPS; i++) {
-    const a = alts[i], b = alts[i + 1];
-
-    // Track maximum altitude (transit)
-    if (b.alt > peakAlt) { peakAlt = b.alt; peakT = b.t; }
-
-    // Rising crossing: altitude goes from negative to non-negative
-    if (a.alt < 0 && b.alt >= 0) {
-      moonrise = a.t + (-a.alt / (b.alt - a.alt)) * STEP;
-    }
-    // Setting crossing: altitude goes from non-negative to negative
-    else if (a.alt >= 0 && b.alt < 0) {
-      moonset = a.t + (a.alt / (a.alt - b.alt)) * STEP;
-    }
-  }
-
-  const alwaysUp = (moonrise === null && moonset === null && alts[0].alt >= 0);
-  const neverUp  = (moonrise === null && moonset === null && alts[0].alt < 0);
-
-  return {
-    moonrise,
-    moonset,
-    moonTransitAlt:  Math.max(0, peakAlt),
-    moonTransitTime: peakT,
-    alwaysUp,
-    neverUp,
-  };
+  const H0 = Math.acos(cosH0) * R2D; // rise/set hour angle for altitude 0
+  return { up: Math.abs(ha) < H0, hourAngle: ha, riseSetHA: H0, transitAlt };
 }
 
 // ── Exports ───────────────────────────────────────────────────────────────────
 
 window.computeSolarTimes = computeSolarTimes;
-window.computeLunarTimes = computeLunarTimes;
+window.computeMoonState = computeMoonState;
 
 })();

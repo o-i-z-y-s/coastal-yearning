@@ -231,7 +231,7 @@ class PlanetRenderer {
     hero.addEventListener('mousemove', e => this._onMouseMove(e));
     hero.addEventListener('mouseleave', () => { this._tip.style.opacity = '0'; });
 
-    // Dismiss when touching anything outside the nearest planet — covers the
+    // Dismiss when touching anything outside the nearest planet; covers the
     // clock scrubber (outside #sky-hero) and other off-hero taps on mobile.
     document.addEventListener('pointerdown', e => {
       if (this._tip.style.opacity === '0') return;
