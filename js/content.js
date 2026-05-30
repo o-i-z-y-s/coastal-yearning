@@ -33,7 +33,7 @@ window.CONTENT = {
     {
       label: 'Learning',
       title: 'M.S. Computer Science',
-      body:  'Graduate Certificate in Artificial Intelligence. Remotely&nbsp;at&nbsp;University of Colorado Boulder. Expected&nbsp;2026.',
+      body:  'Graduate Certificate in Artificial Intelligence. Remotely&nbsp;at&nbsp;University of Colorado Boulder. In&nbsp;progress.',
     },
     {
       label: 'Exploring',

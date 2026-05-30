@@ -693,9 +693,6 @@ function drawMoonOccluder(canvas) {
 // ── Sun / Moon arc ───────────────────────────────────────────────────────────
 
 
-// TODO: atmospheric scattering -- tint the sun via --sun-color based on arc position t
-// (white at zenith t=0.5, amber near horizon t~0 or t~1). No canvas needed; just a
-// CSS variable updated here alongside --sun-left/--sun-top.
 function placeSunMoon(secondsSinceMidnight) {
   window._currentSecs = secondsSinceMidnight; // read by planets.js
   _refreshSolarTimes();
