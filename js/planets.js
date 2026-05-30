@@ -254,7 +254,9 @@ class PlanetRenderer {
 
   _resize() {
     const hero = document.getElementById('sky-hero');
-    this.canvas.width  = hero ? hero.offsetWidth  : window.innerWidth;
+    const w = hero ? hero.offsetWidth : window.innerWidth;
+    if (this.canvas.width === w) return; // ignore iOS URL-bar height jitter
+    this.canvas.width  = w;
     this.canvas.height = hero ? hero.offsetHeight : window.innerHeight;
   }
 

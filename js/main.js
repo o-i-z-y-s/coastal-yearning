@@ -10,29 +10,6 @@ const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.
 let devMoonPhase = null;  // null = use real calculated phase
 let _devPhaseIdx = 8;     // starts at the "Real Phase" sentinel
 
-// ── Theme definitions ────────────────────────────────────────────────────────
-
-const THEMES = {
-  dawn: {
-    pulldown:   '#0c3575',
-  },
-  day: {
-    pulldown:   '#096dd9',
-  },
-  dusk: {
-    pulldown:   '#312678',
-  },
-  evening: {
-    pulldown:   '#191947',
-  },
-  night: {
-    pulldown:   '#010b17',
-  },
-  midnight: {
-    pulldown:   '#000810',
-  },
-};
-
 // ── Colour helpers ───────────────────────────────────────────────────────────
 
 /** Linear interpolate two [r, g, b] arrays; returns a new [r, g, b] array. */
@@ -338,13 +315,19 @@ function getSecondsNow() {
   return now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 }
 
-/** Seconds-since-midnight used when a toggle button is pressed. */
-const TOGGLE_TIMES = {
-  dawn:    21600,   // 06:00, pure dawn sky
-  morning: 43200,   // 12:00, noon, sun at apex
-  evening: 64800,   // 18:00, 6 pm, dusk
-  night:       0,   // 00:00, midnight, moon at apex
-};
+/**
+ * Seconds-since-midnight for each toggle button, derived from real solar times
+ * for the currently displayed date. Falls back to fixed clock times if _solar
+ * is not yet initialised (should not happen in practice).
+ * Night = solar midnight (12 h after solar noon), which may wrap past 00:00.
+ */
+function getToggleSecs() {
+  const sr   = _solar ? _solar.sunrise   : 21600;  // real sunrise
+  const noon = _solar ? _solar.solarNoon : 43200;  // real solar noon
+  const ss   = _solar ? _solar.sunset    : 64800;  // real sunset
+  const smid = (noon + 43200) % 86400;             // solar midnight
+  return { dawn: sr, morning: noon, evening: ss, night: smid };
+}
 
 // true while the user has manually selected a theme; auto-updates are suppressed.
 let manualOverride = false;
@@ -456,7 +439,7 @@ function _setFavicon(hours) {
   document.head.appendChild(_favEl);
 }
 
-/** Syncs all theme-color meta tags (toolbar on iOS/Android) to the current pulldown colour. */
+/** Syncs all theme-color meta tags (toolbar on iOS/Android) to the current sky-top colour. */
 function _setThemeColor(color) {
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', color));
 }
@@ -467,9 +450,7 @@ function _setThemeColor(color) {
  * otherwise uses the theme's representative hour from THEME_HOURS.
  */
 function applyTheme(themeKey, skyHours) {
-  const th  = THEMES[themeKey];
   const hrs = skyHours !== undefined ? skyHours : THEME_HOURS[themeKey];
-  document.documentElement.style.setProperty('--pulldown',    th.pulldown);
   _setFavicon(hrs);
   applyGradients(hrs);  // applyGradients handles --sand-opacity and theme-color
 }
@@ -901,7 +882,7 @@ function initToggle() {
       const t        = btn.dataset.time;
       const themeMap = { dawn: 'dawn', morning: 'day', evening: 'dusk', night: 'midnight' };
       const themeKey = themeMap[t];
-      const secs     = TOGGLE_TIMES[t];
+      const secs     = getToggleSecs()[t];
       const hours    = secs / 3600;
       manualOverride = true;
       applyTheme(themeKey, hours);
@@ -1072,8 +1053,6 @@ class ClockScrubber {
     if (theme !== this._lastTheme) {
       this._lastTheme   = theme;
       currentOceanTheme = theme;
-      const th = THEMES[theme];
-      document.documentElement.style.setProperty('--pulldown',    th.pulldown);
       _setFavicon(hours);
     }
 
@@ -1180,8 +1159,10 @@ class ClockScrubber {
  */
 function _resizeGradientCanvas() {
   if (!_el.gradientCanvas || !_el.sky) return;
-  _el.gradientCanvas.width  = _el.sky.offsetWidth;
-  _el.gradientCanvas.height = _el.sky.offsetHeight;
+  const _gw = _el.sky.offsetWidth, _gh = _el.sky.offsetHeight;
+  if (_el.gradientCanvas.width === _gw && _el.gradientCanvas.height === _gh) return;
+  _el.gradientCanvas.width  = _gw;
+  _el.gradientCanvas.height = _gh;
   const secs  = clockScrubber ? clockScrubber.secs : getSecondsNow();
   const hours = secs / 3600;
   paintSkyGradient(hours, getSkyBlend(hours));
@@ -1207,8 +1188,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   currentOceanTheme = getTimeOfDay();
   const _bootSecs  = getSecondsNow();
-  const _bootTheme = THEMES[currentOceanTheme];
-  document.documentElement.style.setProperty('--pulldown',    _bootTheme.pulldown);
   _setFavicon(_bootSecs / 3600);
   // Lock sky height to the initial viewport; prevents iOS nav-bar resize from reflowing the sky.
   document.documentElement.style.setProperty('--sky-h', window.innerHeight + 'px');
@@ -1228,8 +1207,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (themeKey !== currentOceanTheme) {
       currentOceanTheme = themeKey;
-      const t = THEMES[themeKey];
-      document.documentElement.style.setProperty('--pulldown',    t.pulldown);
       _setFavicon(hours);
     }
   }, 60000);

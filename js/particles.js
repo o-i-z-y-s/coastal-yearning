@@ -31,6 +31,8 @@ class SkyParticles {
   }
 
   _resize() {
+    // Ignore iOS URL-bar height jitter: only relayout on a real width change.
+    if (this.canvas.width === window.innerWidth) return;
     const prevW = this.canvas.width  || window.innerWidth;
     const prevH = this.canvas.height || window.innerHeight;
     this.canvas.width  = window.innerWidth;
@@ -122,7 +124,9 @@ class BubbleParticles {
   }
 
   _resize() {
-    this.canvas.width  = this.canvas.offsetWidth  || window.innerWidth;
+    const w = this.canvas.offsetWidth || window.innerWidth;
+    if (this.canvas.width === w) return;
+    this.canvas.width  = w;
     this.canvas.height = this.canvas.offsetHeight || window.innerHeight;
   }
 
