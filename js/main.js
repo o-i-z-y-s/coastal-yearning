@@ -62,38 +62,86 @@ const SKY_STOPS = {
 // Representative hours at which each theme is fully "pure" (used by toggle buttons)
 const THEME_HOURS = { dawn: 6, day: 12, dusk: 18.5, night: 21, midnight: 0 };
 
-// ── Segment tables ───────────────────────────────────────────────────────────
+// ── Seasonal segment tables ──────────────────────────────────────────────────
+// Segment tables are computed from real solar times for the display date.
 // Each entry: [hourStart, hourEnd, themeFrom, themeTo]
 
-const SKY_SEGS = [
-  [0,    2.0,  'midnight', 'midnight'],
-  [2.0,  4.5,  'midnight', 'night'  ],
-  [4.5,  5.5,  'night',    'dawn'   ],
-  [5.5,  6.5,  'dawn',     'dawn'   ],  // pure dawn — Belt of Venus visible
-  [6.5,  8.0,  'dawn',     'day'    ],
-  [8.0,  16.0, 'day',      'day'    ],
-  [16.0, 18.0, 'day',      'dusk'   ],
-  [18.0, 19.0, 'dusk',     'dusk'   ],  // pure sunset
-  [19.0, 19.5, 'dusk',     'evening'],
-  [19.5, 20.0, 'evening',  'night'  ],
-  [20.0, 22.0, 'night',    'night'  ],
-  [22.0, 24.0, 'night',    'midnight'],
-];
+// Cached astronomical data — rebuilt when the display date changes.
+let _solar   = null; // result of computeSolarTimes()
+let _lunar   = null; // result of computeLunarTimes()
+let _skySegs = null;
+let _ocnSegs = null;
 
-const OCEAN_SEGS = [
-  [0,    2.0,  'midnight', 'midnight'],
-  [2.0,  5.0,  'midnight', 'night'  ],
-  [5.0,  6.0,  'night',    'dawn'   ],
-  [6.0,  7.0,  'dawn',     'dawn'   ],
-  [7.0,  8.0,  'dawn',     'day'    ],
-  [8.0,  17.0, 'day',      'day'    ],
-  [17.0, 18.0, 'day',      'dusk'   ],
-  [18.0, 19.0, 'dusk',     'dusk'   ],
-  [19.0, 19.5, 'dusk',     'evening'],
-  [19.5, 20.0, 'evening',  'night'  ],
-  [20.0, 22.0, 'night',    'night'  ],
-  [22.0, 24.0, 'night',    'midnight'],
-];
+/**
+ * Builds a sky/ocean segment table from solar times.
+ * Twilight phase widths are physically fixed (atmospheric optics don't
+ * vary with season at mid-latitudes); only pure "day" and "night" expand/contract.
+ *
+ *   astronomical twilight = ±90 min from sunrise/sunset  (sun at ±18°)
+ *   nautical twilight     = ±60 min                      (sun at ±12°)
+ *   civil twilight        = ±30 min                      (sun at  ±6°)
+ */
+function buildSegs({ sunrise, sunset, solarNoon }) {
+  const sr   = sunrise  / 3600;
+  const ss   = sunset   / 3600;
+  // Solar midnight: 12 h from solar noon, normalised to [0, 24)
+  const smid = ((solarNoon / 3600 - 12) + 24) % 24;
+
+  // Morning twilight anchors
+  const astroDawn = sr - 1.5;
+  const nautDawn  = sr - 1.0;
+  const dayStart  = sr + 0.5;  // civil twilight ends ~30 min after sunrise
+
+  // Evening twilight anchors
+  const dayEnd    = ss - 0.5;
+  const civilDusk = ss + 0.5;
+  const nautDusk  = ss + 1.0;
+  const astroDusk = ss + 1.5;
+
+  // Midnight window: ±1.5 h around solar midnight, straddles the 0/24 boundary.
+  // At 35 °N / 120 °W solar midnight ≈ 00:00–01:00, so midA ≈ 22.5–23.5 h
+  // and midB ≈ 1.5–2.5 h — always well inside [0, 24).
+  const midA = (smid - 1.5 + 24) % 24; // where night → midnight begins
+  const midB = (smid + 1.5)      % 24; // where midnight → night ends
+
+  return [
+    [0,         midB,      'midnight', 'midnight'],
+    [midB,      astroDawn, 'midnight', 'night'   ],
+    [astroDawn, nautDawn,  'night',    'dawn'    ],
+    [nautDawn,  sr,        'dawn',     'dawn'    ],  // nautical + civil dawn
+    [sr,        dayStart,  'dawn',     'day'     ],
+    [dayStart,  dayEnd,    'day',      'day'     ],  // expands in summer
+    [dayEnd,    ss,        'day',      'dusk'    ],
+    [ss,        civilDusk, 'dusk',     'dusk'    ],  // pure sunset glow
+    [civilDusk, nautDusk,  'dusk',     'evening' ],
+    [nautDusk,  astroDusk, 'evening',  'night'   ],
+    [astroDusk, midA,      'night',    'night'   ],  // expands in winter
+    [midA,      24,        'night',    'midnight'],
+  ];
+}
+
+/**
+ * Recomputes solar times + segment tables for the current display date.
+ * No-op when the date hasn't changed since the last call (cheap string key check).
+ */
+function _refreshSolarTimes() {
+  const date    = (window._currentDate instanceof Date) ? window._currentDate : new Date();
+  const dateKey = date.toDateString();
+  if (_solar && _solar._dateKey === dateKey) return;
+
+  try {
+    _solar = computeSolarTimes(date, 35.0, -120.0); // coastal California
+    _lunar = computeLunarTimes(date, 35.0, -120.0);
+  } catch (e) {
+    // If astronomy.js failed to load or threw, fall back to equinox values at 35°N
+    // so applyGradients can still set --sky-top and the CSS gradient still works.
+    _solar = { sunrise: 23400, sunset: 72000, solarNoon: 46800, sunElevNoon: 55 };
+    _lunar = { neverUp: true, moonTransitAlt: 0, moonTransitTime: 0 };
+  }
+  _solar._dateKey = dateKey;
+  _skySegs = buildSegs(_solar);
+  _ocnSegs = buildSegs(_solar);
+}
 
 /**
  * Returns { from, to, t } for the two bracketing themes at a given hour.
@@ -107,8 +155,8 @@ function getBlend(hours, segs) {
   return { from: 'night', to: 'night', t: 0 };
 }
 
-function getSkyBlend(hours)   { return getBlend(hours, SKY_SEGS);   }
-function getOceanBlend(hours) { return getBlend(hours, OCEAN_SEGS); }
+function getSkyBlend(hours)   { _refreshSolarTimes(); return getBlend(hours, _skySegs); }
+function getOceanBlend(hours) { _refreshSolarTimes(); return getBlend(hours, _ocnSegs); }
 
 
 /**
@@ -258,13 +306,20 @@ function applyGradients(hours, skyOnly) {
 // ── Time detection ───────────────────────────────────────────────────────────
 
 function getTimeOfDayFromHour(h) {
-  if (h < 2)    return 'midnight';
-  if (h < 5)    return 'night';
-  if (h < 7)    return 'dawn';
-  if (h < 17)   return 'day';
-  if (h < 20)   return 'dusk';
-  if (h <= 22)  return 'night';
-  return 'midnight';
+  _refreshSolarTimes();
+  const sr   = _solar.sunrise  / 3600;
+  const ss   = _solar.sunset   / 3600;
+  const smid = ((_solar.solarNoon / 3600 - 12) + 24) % 24;
+  const n    = ((h % 24) + 24) % 24;
+  // Solar midnight window (wraps around 0/24)
+  let md = Math.abs(n - smid);
+  if (md > 12) md = 24 - md;
+  if (md < 1.5)                         return 'midnight';
+  if (n >= sr - 1.0 && n < sr + 0.5)   return 'dawn';
+  if (n >= sr + 0.5 && n < ss - 0.5)   return 'day';
+  if (n >= ss - 0.5 && n < ss + 1.0)   return 'dusk';
+  if (n >= ss + 1.0 && n < ss + 1.5)   return 'evening';
+  return 'night';
 }
 
 function getTimeOfDay() {
@@ -657,27 +712,50 @@ function drawMoonOccluder(canvas) {
 // CSS variable updated here alongside --sun-left/--sun-top.
 function placeSunMoon(secondsSinceMidnight) {
   window._currentSecs = secondsSinceMidnight; // read by planets.js
-  const dayPct = (secondsSinceMidnight / 43200) * 100;
+  _refreshSolarTimes();
 
-  const HORIZON_Y = 22, PEAK_Y = 9, ARC_H = HORIZON_Y - PEAK_Y;
+  const sr   = _solar.sunrise;
+  const ss   = _solar.sunset;
+  const secs = secondsSinceMidnight;
+
+  // ── Shared arc geometry ───────────────────────────────────────────────────
+  const HORIZON_Y = 22;
   const X_RISE = -12, X_SET = 112;
   const arcX = t => X_RISE + (X_SET - X_RISE) * t;
-  const arcY = t => HORIZON_Y - ARC_H * Math.sin(Math.PI * t);
 
-  const sun         = _el.sun;
-  const moonCanvas  = _el.moon;
+  // Sun arc — peak height from actual solar elevation at noon.
+  // At equinox (55° at 35°N) → PEAK_Y ≈ 9% = old hardcoded default.
+  const sunPeakY = HORIZON_Y * (1 - _solar.sunElevNoon / 90);
+  const sunArcH  = HORIZON_Y - sunPeakY;
+  const sunArcY  = t => HORIZON_Y - sunArcH * Math.sin(Math.PI * t);
+
+  const sun          = _el.sun;
+  const moonCanvas   = _el.moon;
   const moonOccluder = _el.moonOccluder;
   if (!sun || !moonCanvas) return;
+
+  // Moon opacity — full at night, washed-out disc during daylight (Chunk 3).
+  const _moonOpacity = Math.max(0.15,
+    typeof window._starVisibility === 'number' ? window._starVisibility : 1.0
+  ).toFixed(3);
+
+  // Occluder blocks stars behind the moon's dark side — only needed when stars
+  // are actually visible.  During daylight _starVisibility → 0 so the occluder
+  // fades to invisible, leaving just the lit crescent against the blue sky.
+  const _occluderOpacity = (typeof window._starVisibility === 'number'
+    ? window._starVisibility : 1.0).toFixed(3);
 
   const _showMoon = (left, top, phase) => {
     moonCanvas.style.left       = left;
     moonCanvas.style.top        = top;
     moonCanvas.style.visibility = 'visible';
+    moonCanvas.style.opacity    = _moonOpacity;
     drawMoonPhase(moonCanvas, phase);
     if (moonOccluder) {
       moonOccluder.style.left       = left;
       moonOccluder.style.top        = top;
       moonOccluder.style.visibility = 'visible';
+      moonOccluder.style.opacity    = _occluderOpacity;
       drawMoonOccluder(moonOccluder);
     }
   };
@@ -687,26 +765,80 @@ function placeSunMoon(secondsSinceMidnight) {
     if (moonOccluder) moonOccluder.style.visibility = 'hidden';
   };
 
+  // ── DEV override ──────────────────────────────────────────────────────────
   if (DEV && devMoonPhase !== null) {
     sun.style.setProperty('--sun-vis', 'hidden');
-    _showMoon('50%', arcY(0.5) + '%', devMoonPhase);
+    _showMoon('50%', sunArcY(0.5) + '%', devMoonPhase);
     return;
   }
 
-  if (dayPct >= 51 && dayPct <= 149) {
-    const t = (dayPct - 51) / 98;
+  // ── Sun: visible from sunrise to sunset ───────────────────────────────────
+  if (secs >= sr && secs <= ss) {
+    const t = (secs - sr) / (ss - sr);
     sun.style.setProperty('--sun-vis',  'visible');
     sun.style.setProperty('--sun-left', arcX(t) + '%');
-    sun.style.setProperty('--sun-top',  arcY(t) + '%');
-    _hideMoon();
-  } else if (dayPct <= 49 || dayPct >= 151) {
-    const moonPct = dayPct >= 151 ? dayPct : dayPct + 200;
-    const t = (moonPct - 151) / 98;
-    // Always redraw — cheap, and omitting leaves blank canvas if dragged from daytime.
-    _showMoon(arcX(t) + '%', arcY(t) + '%', getMoonPhase());
-    sun.style.setProperty('--sun-vis', 'hidden');
+    sun.style.setProperty('--sun-top',  sunArcY(t) + '%');
   } else {
     sun.style.setProperty('--sun-vis', 'hidden');
+  }
+
+  // ── Moon: visible whenever above the horizon (real lunar arc) ─────────────
+  // Moon and sun can overlap — opacity handles the daytime wash-out.
+  if (!_lunar || _lunar.neverUp) { _hideMoon(); return; }
+
+  // Moon arc geometry — peak height from actual transit altitude.
+  const moonPeakY = HORIZON_Y * (1 - _lunar.moonTransitAlt / 90);
+  const moonArcH  = HORIZON_Y - moonPeakY;
+  const moonArcY  = t => HORIZON_Y - moonArcH * Math.sin(Math.PI * t);
+
+  if (_lunar.alwaysUp) {
+    // Rare at 35°N — use transit time as arc anchor, 12h half-arc assumed.
+    const HALF = 12 * 3600;
+    const el   = ((secs - _lunar.moonTransitTime) % 86400 + 86400) % 86400;
+    const moonT = el / (2 * HALF);
+    _showMoon(arcX(moonT) + '%', moonArcY(moonT) + '%', getMoonPhase());
+    return;
+  }
+
+  // Normal case: determine effective rise/set (extrapolate missing end from transit).
+  const mr = _lunar.moonrise;
+  const ms = _lunar.moonset;
+  const transT = _lunar.moonTransitTime;
+
+  let mr_eff, ms_eff;
+  if (mr !== null && ms !== null) {
+    mr_eff = mr; ms_eff = ms;
+  } else if (mr !== null) {
+    // Moon rises today but doesn't set before midnight — extrapolate set.
+    mr_eff = mr;
+    ms_eff = transT + (transT - mr); // symmetric around transit
+  } else if (ms !== null) {
+    // Moon was already up at midnight, sets today — extrapolate rise.
+    ms_eff = ms;
+    mr_eff = transT - (ms - transT); // symmetric around transit
+  } else {
+    _hideMoon(); return; // shouldn't reach here given alwaysUp/neverUp checks
+  }
+
+  // Arc duration, accounting for a midnight crossing (ms_eff may wrap < mr_eff).
+  const arcDur = ms_eff > mr_eff
+    ? ms_eff - mr_eff
+    : ms_eff + 86400 - mr_eff;
+
+  // Seconds elapsed since moon rose — handles midnight wrap.
+  let elapsed;
+  if (ms_eff > mr_eff) {
+    elapsed = (secs >= mr_eff && secs <= ms_eff) ? secs - mr_eff : -1;
+  } else {
+    // Moon spans midnight (rises in evening, sets in morning)
+    if      (secs >= mr_eff) elapsed = secs - mr_eff;
+    else if (secs <= ms_eff) elapsed = secs + 86400 - mr_eff;
+    else                     elapsed = -1;
+  }
+
+  if (elapsed >= 0 && elapsed <= arcDur) {
+    _showMoon(arcX(elapsed / arcDur) + '%', moonArcY(elapsed / arcDur) + '%', getMoonPhase());
+  } else {
     _hideMoon();
   }
 }
@@ -960,6 +1092,7 @@ class ClockScrubber {
       if (_inDataRange(this._dateOffset - 1)) this._dateOffset -= 1;
     }
     window._currentDate = this._getOffsetDate();
+    _refreshSolarTimes();
     this._updateDatePill();
 
     this.draw();
@@ -1141,6 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => {
     if (manualOverride) return;
     if (clockScrubber && (clockScrubber.active || clockScrubber._overriding)) return;
+    _refreshSolarTimes(); // no-op unless date crossed midnight
     const secs = getSecondsNow();
     placeSunMoon(secs);
     if (clockScrubber) { clockScrubber.secs = secs; clockScrubber.draw(); }
@@ -1150,12 +1284,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.addEventListener('resize', () => {
     _resizeGradientCanvas();
-    // Respect any active override — iOS fires resize when nav bars show/hide,
-    // which would otherwise snap the sun/moon back to real time.
-    // manualOverride covers the theme-button path; _overriding covers the scrubber path.
+    // Only call placeSunMoon when an override is active (preserves scrubbed position
+    // when iOS nav bars hide/show and trigger spurious resize events).
+    // In real-time mode the 1-second interval handles sun/moon — calling it here
+    // would update window._currentSecs on every scroll, causing the planet renderer
+    // to redraw on every iOS browser-chrome resize = constant flickering.
     const _override = manualOverride || (clockScrubber && clockScrubber._overriding);
-    const _rsecs    = (_override && clockScrubber) ? clockScrubber.secs : getSecondsNow();
-    placeSunMoon(_rsecs);
+    if (_override && clockScrubber) placeSunMoon(clockScrubber.secs);
     if (clockScrubber) clockScrubber._canvasRect = null;
   });
 
@@ -1261,6 +1396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cs._dateOffset += step;
         cs._prevSecs    = cs.secs; // prevent false midnight-crossing on next drag
         window._currentDate = cs._getOffsetDate();
+        _refreshSolarTimes();
         cs._updateDatePill();
         placeSunMoon(cs.secs);
         if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
@@ -1272,6 +1408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         cs._dateOffset  = 0;
         cs._prevSecs    = cs.secs;
         window._currentDate = null;
+        _refreshSolarTimes();
         cs._updateDatePill();
         placeSunMoon(cs.secs);
         if (window._planetRenderer) window._planetRenderer._lastPosUpdate = -Infinity;
