@@ -55,6 +55,11 @@ window.CONTENT = {
       href:  'https://github.com/o-i-z-y-s/hoverleser',
     },
     {
+      title: 'Y2sKetch',
+      body:  'Live, collaborative, and retro drawing application with integrated chat rooms. An omage to a bygone aesthetic and a simpler Internet.',
+      href:  'https://y2sketch.com/',
+    },
+    {
       title: 'This site!',
       body:  'Vanilla JS, real-time celestial body positioning, dynamic sky and ocean theming, canvas stars/bubbles. Did you check the moon phase?',
       href:  'https://github.com/o-i-z-y-s/coastal-yearning',
