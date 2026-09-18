@@ -1,6 +1,5 @@
 /**
- * astronomy.js: Pure astronomical calculations. No DOM access.
- * Must be loaded before main.js.
+ * astronomy.js: Pure astronomical calculations. Must be loaded before main.js.
  *
  * Exports (global):
  *   computeSolarTimes(date, latDeg, lonDeg)

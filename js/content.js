@@ -1,11 +1,5 @@
-/**
- * content.js: everything visible on the site lives here.
- * Edit this file to update the page. No framework knowledge needed.
- */
-
 window.CONTENT = {
 
-  // ── Hero ────────────────────────────────────────────────────────────────────
   name:    'Jordan Fluitt',
   tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astronomy nerd. Dog lover. Used em-dashes long before AI did.',
 
@@ -15,15 +9,13 @@ window.CONTENT = {
     { href: 'mailto:jordanf.tpm@gmail.com',                   img: './assets/letter.svg',   label: 'Email'    },
   ],
 
-  // ── Ocean: short bio ─────────────────────────────────────────────────────────
   bio: 'I lead R&D initiatives and the engineers that build them. <a href="https://www.caci.com/space" target="_blank" rel="noopener noreferrer">We put things in space.</a>',
 
-  // ── Ocean: status cards ──────────────────────────────────────────────────────
   statusCards: [
     {
       label: 'Currently',
       title: 'Technical Program Manager',
-      body:  'Own a portfolio of five R&D projects, driving products from inception to market. Steward the budget and report directly to executives.',
+      body:  'Own a portfolio of five projects, driving products from inception to market. Steward the budget and report directly to executives.',
     },
     {
       label: 'Previously',
@@ -31,23 +23,22 @@ window.CONTENT = {
       body:  'Developed mission-essential software for space launch. Took a sledgehammer to old UI. Also built cables on an island in Alaska.',
     },
     {
-      label: 'Learning',
+      label: 'Scholarly',
       title: 'M.S. Computer Science',
-      body:  'Graduate Certificate in Artificial Intelligence. Remotely&nbsp;at&nbsp;University of Colorado Boulder. In&nbsp;progress.',
+      body:  'Graduate Certificate in Artificial Intelligence. University of Colorado Boulder.',
     },
     {
-      label: 'Exploring',
-      title: 'Agentic AI',
-      body:  'Working daily with agents on projects both professional and ridiculous. Also writing comparative evaluations of frontier models.',
-    },
-    {
-      label: 'Recently',
+      label: 'Recently-ish',
       title: 'PMP Certified',
       body:  'Above target across the board. The seven-hour YouTube videos work!',
     },
+    {
+      label: 'Learning',
+      title: 'Agentic AI',
+      body:  'Designing solutions and working with agents on projects both professional and fun. Also writing comparative evaluations of frontier models.',
+    },
   ],
 
-  // ── Ocean: projects ──────────────────────────────────────────────────────────
   projects: [
     {
       title: 'hoverleser',
@@ -60,17 +51,21 @@ window.CONTENT = {
       href:  'https://y2sketch.com/',
     },
     {
+      title: 'JobSift',
+      body:  'An automated job scraping pipeline for sifting through the noise. Configuration-driven with a results dashboard. Now Electron! ',
+      href:  'https://github.com/o-i-z-y-s/jobsift-electron',
+    },
+    {
       title: 'This site!',
       body:  'Vanilla JS, real-time celestial body positioning, dynamic sky and ocean theming, canvas stars/bubbles. Did you check the moon phase?',
       href:  'https://github.com/o-i-z-y-s/coastal-yearning',
     },
   ],
 
-  // ── Ocean: also (small cards, edit title and body freely) ─────────────────
   also: [
     { title: 'Linguistics',         body: 'UC Santa Barbara. Studied abroad in Tokyo. This actually came in handy building hoverleser.' },
-    { title: 'Localization',        body: 'Untangle Japanese works in translation when new volumes drop. I\'ve done over 50! And a game!' },
-    { title: 'German',              body: 'Fully understands videos on geopolitics, but cannot summarize them back to you.' },
+    { title: 'Localization',        body: 'Untangle Japanese works in translation when volumes drop. I\'ve done over 50 books! And a game!' },
+    { title: 'German',              body: 'Can watch long videos about geopolitics, but cannot summarize them back to you.' },
     { title: 'Japanese',            body: 'Could survive outside Tokyo with no phone, but it would not be fun for anyone involved.' },
   ],
 
