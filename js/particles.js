@@ -7,7 +7,7 @@
  * Star count scales with window._starVisibility (0=day, 1=midnight) set by main.js.
  */
 
-// Pre-computed RGB strings for the three star colours
+// Pre-computed RGB strings for the three star colors
 const STAR_RGB = {
   '#ffffff': '255,255,255',
   '#fff08f': '255,240,143',
@@ -20,14 +20,13 @@ class SkyParticles {
     if (!this.canvas) return;
     this.ctx = this.canvas.getContext('2d');
     this.particles = [];
-    this._raf = null;
     this._lastFrame = 0;
     this._onResize = () => this._resize();
     this._boundTick = this._tick.bind(this);
     this._resize();
     window.addEventListener('resize', this._onResize);
     this._init();
-    this._raf = requestAnimationFrame(this._boundTick);
+    requestAnimationFrame(this._boundTick);
   }
 
   _resize() {
@@ -69,7 +68,7 @@ class SkyParticles {
   }
 
   _tick(ts) {
-    this._raf = requestAnimationFrame(this._boundTick);
+    requestAnimationFrame(this._boundTick);
 
     // ~24fps cap - stars move so slowly that lower fps is imperceptible
     if (ts - this._lastFrame < 42) return;
@@ -97,11 +96,6 @@ class SkyParticles {
       ctx.fill();
     }
   }
-
-  destroy() {
-    cancelAnimationFrame(this._raf);
-    window.removeEventListener('resize', this._onResize);
-  }
 }
 
 
@@ -111,7 +105,6 @@ class BubbleParticles {
     if (!this.canvas) return;
     this.ctx = this.canvas.getContext('2d');
     this.bubbles = [];
-    this._raf = null;
     this._lastFrame = 0;
     this._onResize = () => this._resize();
     this._onClick  = () => this._addBubbles(4);
@@ -120,7 +113,7 @@ class BubbleParticles {
     window.addEventListener('resize', this._onResize);
     this.canvas.addEventListener('click', this._onClick);
     this._initBubbles(8);
-    this._raf = requestAnimationFrame(this._boundTick);
+    requestAnimationFrame(this._boundTick);
   }
 
   _resize() {
@@ -144,7 +137,7 @@ class BubbleParticles {
   _addBubbles(n)   { const MAX = 30; for (let i = 0; i < n && this.bubbles.length < MAX; i++) this.bubbles.push(this._makeBubble(false)); }
 
   _tick(ts) {
-    this._raf = requestAnimationFrame(this._boundTick);
+    requestAnimationFrame(this._boundTick);
 
     // 20fps cap
     if (ts - this._lastFrame < 50) return;
@@ -173,11 +166,5 @@ class BubbleParticles {
       ctx.fillStyle = `rgba(255,255,255,${op.toFixed(2)})`;
       ctx.fill();
     }
-  }
-
-  destroy() {
-    cancelAnimationFrame(this._raf);
-    window.removeEventListener('resize', this._onResize);
-    this.canvas.removeEventListener('click', this._onClick);
   }
 }

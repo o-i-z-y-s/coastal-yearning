@@ -1,6 +1,6 @@
 /**
  * main.js: site logic.
- * Handles: time detection, time-of-day colour themes, sun/moon arc,
+ * Handles: time detection, time-of-day color themes, sun/moon arc,
  * time toggle, and rendering all content from content.js.
  */
 
@@ -10,7 +10,7 @@ const DEV = location.hostname === 'localhost' || location.hostname === '127.0.0.
 let devMoonPhase = null;  // null = use real calculated phase
 let _devPhaseIdx = 8;     // starts at the "Real Phase" sentinel
 
-// ── Colour helpers ───────────────────────────────────────────────────────────
+// ── Color helpers ───────────────────────────────────────────────────────────
 
 /** Linear interpolate two [r, g, b] arrays; returns a new [r, g, b] array. */
 function lerpRGB(a, b, t) {
@@ -113,7 +113,7 @@ function _refreshSolarTimes() {
 
   try {
     _solar = computeSolarTimes(date, 35.0, -120.0); // coastal California
-  } catch (e) {
+  } catch {
     // If astronomy.js failed to load or threw, fall back to equinox values at 35°N
     // so applyGradients can still set --sky-top and the CSS gradient still works.
     _solar = { sunrise: 23400, sunset: 72000, solarNoon: 46800, sunElevNoon: 55 };
@@ -141,7 +141,7 @@ function getOceanBlend(hours) { _refreshSolarTimes(); return getBlend(hours, _se
 /**
  * Paints the sky gradient directly onto the dedicated gradient canvas.
  * Avoids CSS style recalc entirely -- canvas fillRect is a direct GPU op.
- * CSS stop positions span [-10%, 140%]; colours at the visible edges
+ * CSS stop positions span [-10%, 140%]; colors at the visible edges
  * (0% and 100%) are interpolated from the surrounding stops exactly.
  */
 function paintSkyGradient(hours, blend) {
@@ -151,7 +151,7 @@ function paintSkyGradient(hours, blend) {
   const { from, to, t } = blend || getSkyBlend(hours);
   const a = SKY_STOPS[from], b = SKY_STOPS[to];
   const c = [0, 1, 2, 3, 4].map(i => lerpRGB(a[i], b[i], t));
-  // Exact colours at viewport edges (0% and 100%)
+  // Exact colors at viewport edges (0% and 100%)
   const cTop    = lerpRGB(c[0], c[1], 10 / 30); // 0% is 10/30 between -10% and 20%
   const cBottom = lerpRGB(c[3], c[4], 18 / 58); // 100% is 18/58 between 82% and 140%
   const toRgb = ([r, g, bl]) => `rgb(${r},${g},${bl})`;
@@ -228,7 +228,6 @@ const _el = {};
 let _lastSurfGrad   = '';
 let _lastWaveColor  = '';
 let _lastOceanGrad  = '';
-let _lastFooterColor = '';
 let _lastSkyTop      = '';
 let _lastOceanFloor  = '';
 
@@ -242,7 +241,7 @@ function applyGradients(hours, skyOnly) {
   const skyB   = getSkyBlend(hours);
   const oceanB = getOceanBlend(hours);
   paintSkyGradient(hours, skyB);
-  // Exact topmost-pixel colour of the sky canvas, used as the html overscroll background
+  // Exact topmost-pixel color of the sky canvas, used as the html overscroll background
   {
     const { from: _f, to: _t, t: _bt } = skyB;
     const _sa = SKY_STOPS[_f], _sb = SKY_STOPS[_t];
@@ -270,7 +269,7 @@ function applyGradients(hours, skyOnly) {
   if (waveColor !== _lastWaveColor) {
     _lastWaveColor = waveColor;
     _el.wavePaths.forEach(p => p.setAttribute('fill', waveColor));
-    // Expose r,g,b components so the #ocean::before gradient can follow the same colour.
+    // Expose r,g,b components so the #ocean::before gradient can follow the same color.
     const _wm = waveColor.match(/(\d+),(\d+),(\d+)/);
     if (_wm) document.documentElement.style.setProperty('--wave-rgb', `${_wm[1]},${_wm[2]},${_wm[3]}`);
   }
@@ -279,10 +278,6 @@ function applyGradients(hours, skyOnly) {
     if (oceanGrad !== _lastOceanGrad) {
       _lastOceanGrad = oceanGrad;
       if (_el.ocean) _el.ocean.style.background = oceanGrad;
-    }
-    if (_oceanFloor !== _lastFooterColor) {
-      _lastFooterColor = _oceanFloor;
-      if (_el.footer) _el.footer.style.backgroundColor = _oceanFloor;
     }
     document.documentElement.style.setProperty('--sand-opacity', getSandOpacity(hours, oceanB));
   }
@@ -439,7 +434,7 @@ function _setFavicon(hours) {
   document.head.appendChild(_favEl);
 }
 
-/** Syncs all theme-color meta tags (toolbar on iOS/Android) to the current sky-top colour. */
+/** Syncs all theme-color meta tags (toolbar on iOS/Android) to the current sky-top color. */
 function _setThemeColor(color) {
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => m.setAttribute('content', color));
 }
@@ -774,7 +769,7 @@ function placeSunMoon(secondsSinceMidnight) {
 
   let _moon = null;
   if (typeof computeMoonState === 'function') {
-    try { _moon = computeMoonState(_moonInstant, 35.0, -120.0); } catch (e) { _moon = null; }
+    try { _moon = computeMoonState(_moonInstant, 35.0, -120.0); } catch { _moon = null; }
   }
   if (!_moon || !_moon.up) { _hideMoon(); return; }
 
@@ -787,13 +782,20 @@ function placeSunMoon(secondsSinceMidnight) {
   _showMoon(arcX(_mt) + '%', moonArcY + '%', getMoonPhase());
 }
 
-// ── URL sanitiser ────────────────────────────────────────────────────────────
+// ── Sanitisers ───────────────────────────────────────────────────────────────
 
 function safeHref(href) {
   try {
     const url = new URL(href, location.href);
     return ['https:', 'http:', 'mailto:'].includes(url.protocol) ? href : '#';
   } catch { return '#'; }
+}
+
+const _ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+/** Escapes a value for interpolation into an HTML string, in text or attribute position. */
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => _ESC[c]);
 }
 
 // ── Render content from content.js ───────────────────────────────────────────
@@ -813,10 +815,12 @@ function renderContent() {
       const safe  = safeHref(l.href);
       const isExt = !l.href.startsWith('mailto:');
       const rel   = isExt ? 'target="_blank" rel="noopener noreferrer"' : '';
-      return '<a href="' + safe + '"' + (rel ? ' ' + rel : '') + ' aria-label="' + l.label + '"><img src="' + l.img + '" alt="' + l.label + '"></a>';
+      return '<a href="' + esc(safe) + '"' + (rel ? ' ' + rel : '') + ' aria-label="' + esc(l.label) + '"><img src="' + esc(l.img) + '" alt="' + esc(l.label) + '"></a>';
     }).join('');
   }
 
+  // C.bio is the one field intentionally parsed as HTML (it carries an inline link).
+  // Everything else on this page is escaped; keep markup out of the other fields.
   const bioEl = document.getElementById('ocean-bio');
   if (bioEl) bioEl.innerHTML = C.bio;
 
@@ -824,9 +828,9 @@ function renderContent() {
   if (statusEl) {
     statusEl.innerHTML = C.statusCards.map(c =>
       '<div class="glass-card">' +
-        '<div class="card-label">' + c.label + '</div>' +
-        '<div class="card-title">' + c.title + '</div>' +
-        '<div class="card-sub">'   + c.body  + '</div>' +
+        '<div class="card-label">' + esc(c.label) + '</div>' +
+        '<div class="card-title">' + esc(c.title) + '</div>' +
+        '<div class="card-sub">'   + esc(c.body)  + '</div>' +
       '</div>'
     ).join('');
   }
@@ -837,11 +841,11 @@ function renderContent() {
       const cls  = p.href ? 'glass-card glass-card--link' : 'glass-card';
       const tag  = p.href ? 'a' : 'div';
       const attr = p.href
-        ? 'href="' + safeHref(p.href) + '" target="_blank" rel="noopener noreferrer"'
+        ? 'href="' + esc(safeHref(p.href)) + '" target="_blank" rel="noopener noreferrer"'
         : '';
       return '<' + tag + ' class="' + cls + '" ' + attr + '>' +
-               '<div class="card-title">' + p.title + '</div>' +
-               '<div class="card-sub">'   + p.body  + '</div>' +
+               '<div class="card-title">' + esc(p.title) + '</div>' +
+               '<div class="card-sub">'   + esc(p.body)  + '</div>' +
              '</' + tag + '>';
     }).join('');
   }
@@ -850,8 +854,8 @@ function renderContent() {
   if (alsoEl) {
     alsoEl.innerHTML = C.also.map(a =>
       '<div class="glass-card glass-card--small">' +
-        '<div class="card-title">' + a.title + '</div>' +
-        (a.body ? '<div class="card-sub">' + a.body + '</div>' : '') +
+        '<div class="card-title">' + esc(a.title) + '</div>' +
+        (a.body ? '<div class="card-sub">' + esc(a.body) + '</div>' : '') +
       '</div>'
     ).join('');
   }
@@ -1173,7 +1177,6 @@ document.addEventListener('DOMContentLoaded', () => {
   _el.gradientCtx    = _el.gradientCanvas ? _el.gradientCanvas.getContext('2d') : null;
   _el.surface        = document.getElementById('sky-surface');
   _el.ocean          = document.getElementById('ocean');
-  _el.footer         = document.getElementById('footer');
   _el.restore        = document.getElementById('scrubber-restore');
   _el.scrubberDate   = document.getElementById('scrubber-date');
   _el.sun            = document.getElementById('sun');
@@ -1247,7 +1250,9 @@ document.addEventListener('DOMContentLoaded', () => {
       // Arrow rotation is handled by CSS .scrubber-collapsed .toggle-arrow
     };
     // On mobile (<600px) default to collapsed if the user has never set a preference.
-    const _stored = localStorage.getItem(_CKEY);
+    // Storage access throws where site data is blocked; fall back to the width default.
+    let _stored = null;
+    try { _stored = localStorage.getItem(_CKEY); } catch { /* storage unavailable */ }
     const _defaultCollapsed = _stored !== null ? _stored === '1' : window.innerWidth < 600;
     // Apply initial state before first paint -- js-ready enables transitions after.
     _applyCollapse(_defaultCollapsed);
@@ -1261,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (tc) tc.classList.add('user-interacted'); // enable transitions from first click onward
       const collapsed = tc ? !tc.classList.contains('scrubber-collapsed') : false;
       _applyCollapse(collapsed);
-      localStorage.setItem(_CKEY, collapsed ? '1' : '0');
+      try { localStorage.setItem(_CKEY, collapsed ? '1' : '0'); } catch { /* storage unavailable */ }
     });
   }
 

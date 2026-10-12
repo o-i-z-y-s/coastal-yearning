@@ -1,7 +1,7 @@
 window.CONTENT = {
 
   name:    'Jordan Fluitt',
-  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astronomy nerd. Dog lover. Used em-dashes long before AI did.',
+  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astronomy nerd. Dog lover. Was robbed of em-dashes by LLMs.',
 
   links: [
     { href: 'https://github.com/o-i-z-y-s',                   img: './assets/github.png',   label: 'GitHub'   },
@@ -9,7 +9,7 @@ window.CONTENT = {
     { href: 'mailto:jordanf.tpm@gmail.com',                   img: './assets/letter.svg',   label: 'Email'    },
   ],
 
-  bio: 'I lead R&D initiatives and the engineers that build them. <a href="https://www.caci.com/space" target="_blank" rel="noopener noreferrer">We put things in space.</a>',
+  bio: 'I lead technical initiatives and the engineers that build them. <a href="https://www.caci.com/space" target="_blank" rel="noopener noreferrer">We put things in space.</a>',
 
   statusCards: [
     {
@@ -18,24 +18,29 @@ window.CONTENT = {
       body:  'Own a portfolio of five projects, driving products from inception to market. Steward the budget and report directly to executives.',
     },
     {
+      label: 'Also currently',
+      title: 'Sr. Program Operations Manager',
+      body:  'Leading AI operations for the PMO of a large-scale program, designing server stacks, building agentic solutions, and establishing first-time governance.',
+    },
+    {
       label: 'Previously',
       title: 'Senior Software Engineer',
       body:  'Developed mission-essential software for space launch. Took a sledgehammer to old UI. Also built cables on an island in Alaska.',
     },
     {
-      label: 'Scholarly',
+      label: 'What I\'m working on...',
+      title: 'Agentic AI & LLM Deployments',
+      body:  'Designing solutions and working with agents on projects professionally and for fun. Also writing comparative evaluations of frontier models.',
+    },
+    {
+      label: 'Education',
       title: 'M.S. Computer Science',
-      body:  'Graduate Certificate in Artificial Intelligence. University of Colorado Boulder.',
+      body:  'Graduate Certificate in Artificial Intelligence. University of Colorado Boulder. December 2026.',
     },
     {
       label: 'Recently-ish',
       title: 'PMP Certified',
       body:  'Above target across the board. The seven-hour YouTube videos work!',
-    },
-    {
-      label: 'Learning',
-      title: 'Agentic AI',
-      body:  'Designing solutions and working with agents on projects both professional and fun. Also writing comparative evaluations of frontier models.',
     },
   ],
 
@@ -52,7 +57,7 @@ window.CONTENT = {
     },
     {
       title: 'JobSift',
-      body:  'An automated job scraping pipeline for sifting through the noise. Configuration-driven with a results dashboard. Now Electron! ',
+      body:  'An automated job scraping pipeline for sifting through the noise. Configuration-driven with an integrated results dashboard.',
       href:  'https://github.com/o-i-z-y-s/jobsift-electron',
     },
     {
