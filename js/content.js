@@ -1,7 +1,7 @@
 window.CONTENT = {
 
   name:    'Jordan Fluitt',
-  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astronomy nerd. Dog lover. Was robbed of em-dashes by LLMs.',
+  tagline: 'Technical program manager. Senior software engineer. Translator. Metal vocalist. Astronomy nerd. Dog lover. Used em-dashes before LLMs.',
 
   links: [
     { href: 'https://github.com/o-i-z-y-s',                   img: './assets/github.png',   label: 'GitHub'   },
@@ -14,13 +14,13 @@ window.CONTENT = {
   statusCards: [
     {
       label: 'Currently',
-      title: 'Technical Program Manager',
-      body:  'Own a portfolio of five projects, driving products from inception to market. Steward the budget and report directly to executives.',
+      title: 'Sr. Technical Program Manager',
+      body:  'Leading AI operations for the PMO of a large-scale program, designing server stacks, building agentic solutions, and establishing first-time governance.',
     },
     {
       label: 'Also currently',
-      title: 'Sr. Program Operations Manager',
-      body:  'Leading AI operations for the PMO of a large-scale program, designing server stacks, building agentic solutions, and establishing first-time governance.',
+      title: 'R&D Program Manager',
+      body:  'Own a portfolio of five projects, driving products from inception to market. Steward the budget and report directly to executives.',
     },
     {
       label: 'Previously',
@@ -35,7 +35,7 @@ window.CONTENT = {
     {
       label: 'Education',
       title: 'M.S. Computer Science',
-      body:  'Graduate Certificate in Artificial Intelligence. University of Colorado Boulder. December 2026.',
+      body:  'Graduate Certificate in Artificial Intelligence. University of Colorado Boulder.',
     },
     {
       label: 'Recently-ish',
