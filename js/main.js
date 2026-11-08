@@ -139,28 +139,38 @@ function getOceanBlend(hours) { _refreshSolarTimes(); return getBlend(hours, _se
 
 
 /**
- * Paints the sky gradient directly onto the dedicated gradient canvas.
- * Avoids CSS style recalc entirely -- canvas fillRect is a direct GPU op.
+ * The five sky stops for a blend, as [position, 'rgb(...)'] pairs.
+ * Shared by the canvas painter and its CSS twin so the two can never drift.
  * CSS stop positions span [-10%, 140%]; colors at the visible edges
  * (0% and 100%) are interpolated from the surrounding stops exactly.
+ */
+function _skyStops(blend) {
+  const { from, to, t } = blend;
+  const a = SKY_STOPS[from], b = SKY_STOPS[to];
+  const c = [0, 1, 2, 3, 4].map(i => lerpRGB(a[i], b[i], t));
+  const cTop    = lerpRGB(c[0], c[1], 10 / 30); // 0% is 10/30 between -10% and 20%
+  const cBottom = lerpRGB(c[3], c[4], 18 / 58); // 100% is 18/58 between 82% and 140%
+  const toRgb = ([r, g, bl]) => `rgb(${r},${g},${bl})`;
+  return [[0.00, toRgb(cTop)], [0.20, toRgb(c[1])], [0.60, toRgb(c[2])],
+          [0.82, toRgb(c[3])], [1.00, toRgb(cBottom)]];
+}
+
+/** The same gradient as a CSS value, for the backdrop twin on #sky-hero. */
+function _skyGradientCSS(blend) {
+  const stops = _skyStops(blend).map(([p, col]) => `${col} ${p * 100}%`);
+  return `linear-gradient(to bottom, ${stops.join(', ')})`;
+}
+
+/**
+ * Paints the sky gradient directly onto the dedicated gradient canvas.
+ * Avoids CSS style recalc entirely -- canvas fillRect is a direct GPU op.
  */
 function paintSkyGradient(hours, blend) {
   const canvas = _el.gradientCanvas;
   if (!canvas) return;
   const ctx = _el.gradientCtx;
-  const { from, to, t } = blend || getSkyBlend(hours);
-  const a = SKY_STOPS[from], b = SKY_STOPS[to];
-  const c = [0, 1, 2, 3, 4].map(i => lerpRGB(a[i], b[i], t));
-  // Exact colors at viewport edges (0% and 100%)
-  const cTop    = lerpRGB(c[0], c[1], 10 / 30); // 0% is 10/30 between -10% and 20%
-  const cBottom = lerpRGB(c[3], c[4], 18 / 58); // 100% is 18/58 between 82% and 140%
-  const toRgb = ([r, g, bl]) => `rgb(${r},${g},${bl})`;
   const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0.00, toRgb(cTop));
-  grad.addColorStop(0.20, toRgb(c[1]));
-  grad.addColorStop(0.60, toRgb(c[2]));
-  grad.addColorStop(0.82, toRgb(c[3]));
-  grad.addColorStop(1.00, toRgb(cBottom));
+  for (const [pos, col] of _skyStops(blend || getSkyBlend(hours))) grad.addColorStop(pos, col);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
@@ -228,6 +238,7 @@ const _el = {};
 let _lastSurfGrad   = '';
 let _lastWaveColor  = '';
 let _lastOceanGrad  = '';
+let _lastSkyCss     = '';
 let _lastSkyTop      = '';
 let _lastOceanFloor  = '';
 
@@ -241,6 +252,19 @@ function applyGradients(hours, skyOnly) {
   const skyB   = getSkyBlend(hours);
   const oceanB = getOceanBlend(hours);
   paintSkyGradient(hours, skyB);
+  // CSS twin of the canvas gradient, painted on #sky-hero behind the canvas.
+  // The canvas stays the fast path for scrubbing; this makes the sky correct
+  // even when the canvas is not displayed, which is what Firefox does to it at
+  // first paint. Identical stops, so when both show you cannot tell them apart.
+  // Skipped mid-drag: the canvas is proven to work there, and a style write per
+  // frame is exactly the cost the canvas exists to avoid.
+  if (!window._scrubbing) {
+    const _skyCss = _skyGradientCSS(skyB);
+    if (_skyCss !== _lastSkyCss) {
+      _lastSkyCss = _skyCss;
+      if (_el.sky) _el.sky.style.backgroundImage = _skyCss;
+    }
+  }
   // Exact topmost-pixel color of the sky canvas, used as the html overscroll background
   {
     const { from: _f, to: _t, t: _bt } = skyB;
@@ -1154,19 +1178,48 @@ class ClockScrubber {
   }
 }
 
+/** Repaints the sky canvas at whatever time is currently on display. */
+function _repaintSky() {
+  const secs = clockScrubber ? clockScrubber.secs : getSecondsNow();
+  paintSkyGradient(secs / 3600, getSkyBlend(secs / 3600));
+}
+
+let _zeroBoxRetries = 0;
+
 /**
  * Sizes the gradient canvas to match sky-hero and repaints.
- * Called at boot and on window resize.
+ * Called at boot, on window resize, and from the recovery hooks at boot.
+ *
+ * A zero-area sky-hero means layout has not settled. Writing that size would
+ * leave an empty bitmap, and no later repaint recovers one: paintSkyGradient
+ * fills 0 x N pixels without erroring, so the canvas stays transparent and the
+ * body colour shows through. Retry on the next frame instead, giving up after
+ * ~1 s so a deliberately hidden hero cannot spin forever.
  */
 function _resizeGradientCanvas() {
   if (!_el.gradientCanvas || !_el.sky) return;
   const _gw = _el.sky.offsetWidth, _gh = _el.sky.offsetHeight;
+  if (!_gw || !_gh) {
+    if (_zeroBoxRetries++ < 60) requestAnimationFrame(_resizeGradientCanvas);
+    return;
+  }
+  _zeroBoxRetries = 0;
   if (_el.gradientCanvas.width === _gw && _el.gradientCanvas.height === _gh) return;
   _el.gradientCanvas.width  = _gw;
   _el.gradientCanvas.height = _gh;
-  const secs  = clockScrubber ? clockScrubber.secs : getSecondsNow();
-  const hours = secs / 3600;
-  paintSkyGradient(hours, getSkyBlend(hours));
+  _repaintSky();
+}
+
+/**
+ * Re-establishes the sky canvas after events that can leave it blank: a first
+ * paint that ran before layout settled, a back/forward-cache restore, or a
+ * backing store the browser dropped while the tab was hidden. Every other
+ * visual on the page is CSS and repaints itself; the canvas is the one surface
+ * that stays empty until something redraws it. A no-op when it is already correct.
+ */
+function _recoverSky() {
+  _resizeGradientCanvas();
+  _repaintSky();
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -1194,6 +1247,14 @@ document.addEventListener('DOMContentLoaded', () => {
   _resizeGradientCanvas();           // sizes canvas before first paint
   applyGradients(_bootSecs / 3600);  // single paint on a correctly-sized canvas
   placeSunMoon(_bootSecs);
+
+  // Recovery points for the sky canvas (see _recoverSky). Each is a no-op when
+  // the canvas is already painted, and each respects a scrubbed or toggled time.
+  window.addEventListener('load', _recoverSky);
+  window.addEventListener('pageshow', _recoverSky);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) _recoverSky();
+  });
 
   setInterval(() => {
     if (manualOverride) return;
